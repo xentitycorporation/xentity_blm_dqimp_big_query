@@ -47,10 +47,12 @@ Each month a snapshot of MLRS and NLSDB come in from the BLM and are shared on G
 ---
 
 ## BLM Data Quality Testing BigQuery Implementation Work Log
-
+### 10/7/2025
+* NLSDB extract will have a later date than MLRS extract (10/5/25) this month. Need to have Natalie (BLM) set up EGMS access so we can pull NLSDB
+  
 ### 5/21/2025
-* Mark Learned to Git
-* Mark completed all steps in the README up to "Update Queries"
+* Mark F Learned to Git
+* Mark F completed all steps in the README up to "Update Queries"
 
 ### 5/19/2025 - 5/20/2025
 * Productionalized SYT_Basic_CL queries and aggegated into single script
@@ -67,8 +69,8 @@ Each month a snapshot of MLRS and NLSDB come in from the BLM and are shared on G
 ### 5/12/2025 - 5/14/2025
 
 * Created new queries for Case Land test and Jira ticket specific tests for weekly calls
-* walked Mark Ferenc through extract process for January snapshot
-* Mark F. loaded Jan snapshot data in sandbox for MLRS and NLSDB
+* walked Mark F through extract process for January snapshot
+* Mark F loaded Jan snapshot data in sandbox for MLRS and NLSDB
 * Elii created how to for loading data from sandbox to BigQuery tables
     * appended to beginning of README
 
