@@ -1,0 +1,79 @@
+##loads
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ACCOUNT_RPT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ACCOUNT_RPT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ACCOUNT_RPT.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=account_rpt_schema.json blm_seta_dqimp.account_rpt_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ACCOUNT_RPT.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ACTION.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ACTION.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ACTION.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=action_schema.json blm_seta_dqimp.action_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ACTION.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ADMIN_UNIT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ADMIN_UNIT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ADMIN_UNIT.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=admin_unit_schema.json blm_seta_dqimp.admin_unit_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ADMIN_UNIT.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ADMIN_UNIT_AGG.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ADMIN_UNIT_AGG.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ADMIN_UNIT_AGG.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=admin_unit_agg_schema.json blm_seta_dqimp.admin_unit_agg_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ADMIN_UNIT_AGG.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_BLM_CASE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_BLM_CASE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/BLM_CASE.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=blm_case_schema.json blm_seta_dqimp.blm_case_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/BLM_CASE.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_BLM_PRODUCT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_BLM_PRODUCT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/BLM_PRODUCT.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=blm_product_schema.json blm_seta_dqimp.blm_product_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/BLM_PRODUCT.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_ACTION.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_ACTION.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_ACTION.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=case_action_schema.json blm_seta_dqimp.case_action_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_ACTION.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_CUSTOMER.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_CUSTOMER.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_CUSTOMER.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=case_customer_schema.json blm_seta_dqimp.case_customer_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_CUSTOMER.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_LAND.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_LAND.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_LAND.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=case_land_schema.json blm_seta_dqimp.case_land_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_LAND.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_TRANSACTION.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_TRANSACTION.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_TRANSACTION.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=case_transaction_schema.json blm_seta_dqimp.case_transaction_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_TRANSACTION.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_INTREL_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_INTREL_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/INTREL_D.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=intrel_d_schema.json blm_seta_dqimp.intrel_d_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/INTREL_D.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_PRODUCT_FEE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_PRODUCT_FEE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/PRODUCT_FEE.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=product_fee_schema.json blm_seta_dqimp.product_fee_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/PRODUCT_FEE.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_RPT_CALENDAR.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_RPT_CALENDAR.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/RPT_CALENDAR.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=rpt_calendar_schema.json blm_seta_dqimp.rpt_calendar_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/RPT_CALENDAR.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_ACTION_STATUS_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_ACTION_STATUS_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_ACTION_STATUS_D.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=case_action_status_d_schema.json blm_seta_dqimp.case_action_status_d_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_ACTION_STATUS_D.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_COMMODITY_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_COMMODITY_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/COMMODITY_D.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=commodity_d_schema.json blm_seta_dqimp.commodity_d_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/COMMODITY_D.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_GROUP_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_GROUP_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_GROUP_D.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=case_group_d_schema.json blm_seta_dqimp.case_group_d_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_GROUP_D.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_MERIDIAN_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_MERIDIAN_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MERIDIAN_D.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=meridian_d_schema.json blm_seta_dqimp.meridian_d_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MERIDIAN_D.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_SURVEY_TYPE_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_SURVEY_TYPE_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/SURVEY_TYPE_D.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=survey_type_d_schema.json blm_seta_dqimp.survey_type_d_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/SURVEY_TYPE_D.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ACTION_CASE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ACTION_CASE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ACTION_CASE.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=action_case_schema.json blm_seta_dqimp.action_case_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ACTION_CASE.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ACTION_LAND.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ACTION_LAND.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ACTION_LAND.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=action_land_schema.json blm_seta_dqimp.action_land_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/ACTION_LAND.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_ADMIN_UNIT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_ADMIN_UNIT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_ADMIN_UNIT.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=case_admin_unit_schema.json blm_seta_dqimp.case_admin_unit_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CASE_ADMIN_UNIT.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_RECORD_TYPE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_RECORD_TYPE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/RECORD_TYPE.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=record_type_schema.json blm_seta_dqimp.record_type_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/RECORD_TYPE.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_SUPPLEMENTAL_USE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_SUPPLEMENTAL_USE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/SUPPLEMENTAL_USE.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=supplemental_use_schema.json blm_seta_dqimp.supplemental_use_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/SUPPLEMENTAL_USE.csv
+gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_US_RIGHT_CASE_LAND.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_US_RIGHT_CASE_LAND.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/US_RIGHT_CASE_LAND.csv
+bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=us_right_case_land_schema.json blm_seta_dqimp.us_right_case_land_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/US_RIGHT_CASE_LAND.csv
+
+bq load --source_format=PARQUET --autodetect blm_seta_dqimp.nlsdb_case_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/Case_09082025_1300.parquet
+bq load --source_format=PARQUET --autodetect blm_seta_dqimp.nlsdb_case_land_20250901 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CaseLands_09082025_1330.parquet
+
+##cleanup
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ACCOUNT_RPT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ACCOUNT_RPT.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ACTION.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ACTION.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ADMIN_UNIT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ADMIN_UNIT.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ADMIN_UNIT_AGG.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ADMIN_UNIT_AGG.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_BLM_CASE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_BLM_CASE.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_BLM_PRODUCT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_BLM_PRODUCT.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_ACTION.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_ACTION.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_CUSTOMER.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_CUSTOMER.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_LAND.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_LAND.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_TRANSACTION.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_TRANSACTION.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_INTREL_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_INTREL_D.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_PRODUCT_FEE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_PRODUCT_FEE.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_RPT_CALENDAR.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_RPT_CALENDAR.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_ACTION_STATUS_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_ACTION_STATUS_D.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_COMMODITY_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_COMMODITY_D.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_GROUP_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_GROUP_D.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_MERIDIAN_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_MERIDIAN_D.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_SURVEY_TYPE_D.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_SURVEY_TYPE_D.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ACTION_LAND.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ACTION_LAND.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_CASE_ADMIN_UNIT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_CASE_ADMIN_UNIT.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_RECORD_TYPE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_RECORD_TYPE.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_US_RIGHT_CASE_LAND.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_US_RIGHT_CASE_LAND.csv
+
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_SUPPLEMENTAL_USE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_SUPPLEMENTAL_USE.csv
+gsutil rm gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/MC_ACTION_CASE.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250901/CR_FULL_ACTION_CASE.csv
