@@ -1,3 +1,5 @@
+# Updating this file for testing purposes
+
 # Purpose of this code is to extract the zipped tar and gzip files of the MLRS snapshot
 # One must customize the sub_folder variable to the relevent snapshot data in unzipped foler
 # This code runs in relative path of the unzipped folder titled "YYYY-MM-DD"
