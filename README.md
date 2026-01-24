@@ -1,207 +1,31 @@
 # BLM SETA Data Quality Testing How To and Work Log
-This README begins with a [How To]() which is followed by a [Work Log](#blm-data-quality-testing-bigquery-implementation-work-log)
-
+This README describes the purpose of this project and the associated content in each of the project subfolders. DQIMP is used as the abbreviation for the project, and is derived from the original creation of a Data Quality Improvement Plan presented to the BLM in summer 2023.
 ---
 
-## How To For BLM DQIMP in BigQuery
-Each month a snapshot of MLRS and NLSDB come in from the BLM and are shared on GDrive @[BLM DQIMP Snapshots](https://drive.google.com/drive/folders/18oZFnOIgRR_K9n4CPTm67lKxpPcq3wsk?usp=drive_link)
+## Project Purpose
+Each month a snapshot of MLRS and NLSDB come in from the BLM and are used to populate a mirror of the RDMS that exists in the BLM environment for operations. The extracts of MLRS and NLSDB do not contain any pii or sensitive information, and as a reult are not a complete mirror of the BLM operational database in Salesforce. The extracts are used to create a database of historical snapshots (Aug 2023 - current) in the Xentity Google Cloud environment, where Big Query is used to interact with the data. The schema files used in the build of the Xentity Google Cloud DQUIM
 
-### Extract MLRS (Salesforce) Snapshots
-1. Download the (2) snaphsot zipped filed with naming convention *Full_* and *MC_*
-2. Place [extract.py](../extract_files/extract.py)
-3. Change the subfolder date to date of current snapshot
-4. Run extract.py
-5. Outputs ~24 CSVs into consolidated_files* folder for each snapshot zipped file
+### Build
+This folder contains the instructions and scripts required to build the DQIMP Google Cloud database of extract snapshots. Currently each month a manual process is required to unpack the snapshot files, convert them into an ingestible file format, merge them into single tables that can be loaded into Big Query tables and used for querying. 
 
-### Extract NLSDB data
-1. NLSDB snapshots come as zipped FileGDBs; unzip.
-2. Use *ogr2ogr* to extract a parquet file of each feature class (there are (2); Case and Case Lands)
-3. Use [remove_geom_from_parquet.ipynb](../extract_files/remove_geom_from_parquet.ipynb) to remove geometries from teh parquet file
-    - Bigquery spatial enablement not flushed out, so this process allows for uploading just the attribute table
+### Report
+Each month there are a predefined set of data quality tests that have been identified as valuable to the BLM team. These tests were extensively vetted through discovery with the BLM team to ensure the information they produce is accurate, does not produce any false-positive conclusions, and provides insight by monitoring over time. 
 
-### Load data into Google Cloud Sandbox for BLM DQIMP Project
-1. Go to [sandbox-blm-seta-dqimp-qaqc](https://console.cloud.google.com/storage/browser/sandbox-blm-seta-dqimp-qaqc/snapshots?inv=1&invt=AbxeBA&pageState=(%22StorageObjectListTable%22:(%22f%22:%22%255B%255D%22)))
-    - Huy is admin for access
-2. Create a subfolder in the *Snapshots* folder titled in format 'YYYYMM01' related to the month the snapshot represents
-3. Load all CSVs from extract.py output as well as (2) NLSDB parquet files extracted from the FileGDB
+This folder contains all of the queries used to generate the report results, as well as the template for the monthly report itself - which is delivered as a pdf to the BLM each month and includes a moving window, or rolling tally, of feature counts. The active working files for all logic diagrams in the report are also stored here, along with detailed descriptions of the report results for interpretation.
 
-### Load data into BigQuery Tables
-1. First step is to consolidate the MLRS Salesforce table parts into a single table
-    - in the sandbox you'll notice the extract.py output provided two versions of each table with naming convention *FULL_* and *MC_*
-    - these need to be concatenated together to acheive one CSV per table
-2. Open command prompt and *cd* to the [schemas folder](../schemas/)
-3. Create a new [load_commands_.txt](../load_commands/) file and search and replace the snapshot date with the new snapshot date you are laoding:
-    - e.g. for 20250501 snapshot:
-    - `gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250501/MC_ACCOUNT_RPT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250501/CR_FULL_ACCOUNT_RPT.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250501/ACCOUNT_RPT.csv`
-        - this code concatenates the two parts of the ACCOUNT_RPT table into a single table that is loaded into the sandbox
-    - `bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 --schema=account_rpt_schema.json blm_dqimp_qaqc.account_rpt_20250501 gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250501/ACCOUNT_RPT.csv`
-        - this code references the schema for the specific table from the [schemas folder](../schemas/)
-4. Copy and paste all lines of code in the load_commands_.txt file down to line 52 into command prompt to run it all as a batch
-    - this supposes you are already setup with Google CLoud CLI tools
-5. Verify that the new tables are loaded into the sandbox and that the count of snaphsot increased in the BigQuery tables
-6. Run the cleanup code in load_commands_.txt starting on line 55 to remove the *sub-tables* from the sandbox
+### New_Tests
+While a select number of tests are included in the monthly report and web app, there are actually a much larger number of tests that have been identified for the broader DQIMP. All of the tests are organized into four categories:
+1. UID Trace Tests confirm that all unique cases in MLRS Salesforce are present in NLSDB.
+2. Attribute Tests ensure MLRS Salesforce and NLSDB field domains are accurate.
+3. Synchronization Tests show if the attributes in MLRS Salesforce are the same as they are in NLSDB and validate that changes over time to MLRS Salesforce and NLSDB are logical.
+4. System Validation Tests track record changes over time to provide feedback on system functionality and identify O&M stories needed to fix or improve the system.
 
-### Update Queries
-1. coming soon...
+This folder contains subfolders with all scripts used to run all of the tests. The associated index for all of the tests, including thier associated short code name, are stored and managed on the Xentity gDrive: https://docs.google.com/spreadsheets/d/1uCg_kqia9dU-r6eLh6LAgq3mlRzYD4F5/edit?gid=1015025729#gid=1015025729
 
----
+Scripts in this folder are actively under development. The BLM team focused efforts from 2023-2025 on the synchronization of attributes between MLRS and NLSDB. At the end of 2025 all sync tests had been validated and added to the list of tests for the report. Beginning in 2026, new tests are being developed for the remaining three categories UID Trace, Attribute and System Validation.
 
-## BLM Data Quality Testing BigQuery Implementation Work Log
-### 10/7/2025
-* NLSDB extract will have a later date than MLRS extract (10/5/25) this month. Need to have Natalie (BLM) set up EGMS access so we can pull NLSDB
-  
-### 5/21/2025
-* Mark F Learned to Git
-* Mark F completed all steps in the README up to "Update Queries"
+### Business Rules
+Throughout the course of validating tests that follow the four scientifically designed test categories, it was discovered that the MLRS and NLSDB systems do not have clear and complete documentation of the business rules that define the system. These rulese include the data dictionary, the ERDs, the field definitions and the table join FK/PK uniqueness. The development of the business rule documentation was captured through BLM SME interviews throughout the five years of MLRS development, and the details were stored in JIRA cards for the developers to use in the creation of the system. The only way to retro0actively identify the rules is to reverse engineer them from the test development process, validate their implemantation through data tests, and create documentation that SMEs can use and refine.
 
-### 5/19/2025 - 5/20/2025
-* Productionalized SYT_Basic_CL queries and aggegated into single script
-* Created new tests for current and future Jira tickets
-* Working on integration of Geoparquet into BigQuery
+This folder contains primarily ipynb files that are used to work through the discovery process of each business rule as it is identified.
 
-### 5/15/2025 - 5/16/2025
-
-* Created queries for all SYT_Basic_CL tests (17)
-* Created aggregate query for snapshot table results of SYTCL tests
-* Added workflow section to README
-* Requested repo moved into blm-devs-group
-
-### 5/12/2025 - 5/14/2025
-
-* Created new queries for Case Land test and Jira ticket specific tests for weekly calls
-* walked Mark F through extract process for January snapshot
-* Mark F loaded Jan snapshot data in sandbox for MLRS and NLSDB
-* Elii created how to for loading data from sandbox to BigQuery tables
-    * appended to beginning of README
-
-### 05/10/2025
-
-* Converted SYT_Basic tests into SQL queries and saved each as an individual query.
-    * this allows for running of individual tests to obtain the actual records which fail the test rather than just receiving the count.
-
-* Created a compiled version of the SYT_Basic query which runs all SYT_Basic attribute tests for all loaded snapshots.
-    * output is a table by snapshot date with results counts for each test
-    * output table is saved as a BQ table titled "SYT_Basic"
-
-* Created saved query for Jira ticket 15252
-    * CSE_DISP 
-    * SRC
-    * Modified date 
-    * case action testing
-
-* Created query for Jira ticket 16052
-
-* Designed custom CSE_DISP waterfall ploty chart in dev.ipynb for tracking case dispositon synchronization changes
-
-### 05/07/2025
-
-* Got new snapshot data, began extracting for upload to Google Cloud  
-Completed extract
-
-* Loaded all Feb snapshot data into new vintage snapshot folder `20250201`
-
-* Converted nlsdbs to Parquets in format acceptable to BQ  
-Got snapshot pieces consolidated  
-Loaded Feb snapshot data into BQ
-
----
-
-### 05/05/2025
-
-* Removed NLSDB case/case_lands Parquets from April snapshot folder. Discussed with Huy and decided spatially enabling data avoid for now.
-
-* Loaded in CSV version of NLSDB into each snapshot folder  
-March snapshot folder needs consolidating still.
-
-* Opened CMD as admin and `cd`’d to schema/ folder  
-Sourced the `load_commands_march.txt` file from load commands folder
-
-* Confirmed Google setup still correct with:
-
-```bash
-gcloud auth list
-```
-
-* Confirmed the correct project is active:
-
-```bash
-gcloud config get-value project
-```
-
-* Ran the combine and delete of pieces for March snapshots.
-
-* Had a big learning curve on loading NLSDB.  
-Process is to extract from FileGDB as Parquet, then use pandas to load in a Notebook and drop the Shape column, then upload that to Cloud Storage.
-
-* Converted the first `SYT_Basic` test into a SQL query and saved as `SYT01`
-
-* Learned you have to run a query in same region of BigQuery project, which in this case is `us-central1`
-
-* Built the following tests and saved as queries:  
-`SYT 1, 3, 4, 5`
-
----
-
-### 05/01/2025
-
-* Elii set up an updated sandbox file structure for snapshots:  
-`sandbox-blm-dqimp-qaqc/snapshots/2050401`
-
-* All CSV files have been moved into the subfolder:
-
-```bash
-gsutil mv gs://sandbox-blm-seta-dqimp-qaqc/*.csv gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250401/
-```
-
-* Elii created a `.json` file with the `MC_CASE_ACTION` schema.
-
-* Elii used `gsutil compose` to combine `MC_CASE_ACTION.csv` and `CR_FULL_CASE_ACTION.csv` into a single CSV titled `CASE_ACTION.csv`:
-
-```bash
-gsutil compose gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250401/MC_CASE_ACTION.csv \
-gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250401/CR_FULL_CASE_ACTION.csv \
-gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250401/CASE_ACTION.csv
-```
-
-* Created a `case_action_schema.json` to load into BigQuery dataset.
-
-* Loaded combined `CASE_ACTION.csv` with a schema as `blm_dqimp_qaqc.CASE_ACTION_20250401`:
-
-```bash
-bq load --source_format=CSV --field_delimiter="|" --skip_leading_rows=0 \
---schema=case_action_schema.json blm_dqimp_qaqc.case_action_20250401 \
-gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250401/CASE_ACTION.csv
-```
-
-* Date formats non-conformant to BigQuery; loading all as string to `CAST` later.
-
-* Created schemas for all tables and loaded all tables for April snapshot.
-
-* Created new snapshot subfolder for March data titled `20250301/`  
-Loaded all CSVs to this subfolder  
-Created load scripts for these tables to BigQuery
-
-* ~~Loaded NLSDB case and case_land feature classes as Parquet files with WKT geometry column.  
-Will have to `CAST` to GEOMETRY column compatible with BigQuery later for spatial analyses.~~
-    * ^^ditching geospatial for now and loaded nlsdb as attribute table only
-
----
-
-### 04/30/2025
-
-* Huy and Elii met and Huy showed Elii how to load a CSV from sandbox into BigQuery dataset.
-
-* Huy showed how snapshots can be handled with low LOE via date suffix naming convention.
-
-**Setup**
-
-* Huy created a sandbox for this data:  
-<https://console.cloud.google.com/storage/browser/sandbox-blm-seta-dqimp-qaqc>
-
-* Elii loaded all CSVs for one snapshot into that sandbox.
-
----
-
-### Notes
-
-* Huy suggested using **DataForm** instead of **dbt**… this is under the BigQuery left sidebar.
