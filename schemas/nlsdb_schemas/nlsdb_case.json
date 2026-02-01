@@ -1,0 +1,16 @@
+##this needs to be created
+[
+    {
+    {
+        "name": "name3",
+        "type": "STRING"
+    },
+    {
+        "name": "name1",
+        "type": "STRING"
+    },
+    {
+        "name": "name",
+        "type": "string"
+    }
+]
