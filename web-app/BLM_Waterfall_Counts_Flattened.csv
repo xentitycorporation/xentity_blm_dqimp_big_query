@@ -1,0 +1,17 @@
+Sort,Category,Month,Type,Base,Value
+1,20250801 - Snapshot Total,20250801,Snapshot Total,0,53963
+2,20250901 - Fixed Cases,20250901,Fixed Cases,53096,-867
+3,20250901 - Newly Out-of-Sync,20250901,Newly Out-of-Sync,53096,1038
+4,20250901 - Snapshot Total,20250901,Snapshot Total,0,54130
+5,20251001 - Fixed Cases,20251001,Fixed Cases,51708,-2422
+6,20251001 - Newly Out-of-Sync,20251001,Newly Out-of-Sync,51969,519
+7,20251001 - Snapshot Total,20251001,Snapshot Total,0,52488
+8,20251101 - Fixed Cases,20251101,Fixed Cases,53648,-343
+9,20251101 - Newly Out-of-Sync,20251101,Newly Out-of-Sync,52466,1525
+10,20251101 - Snapshot Total,20251101,Snapshot Total,0,53991
+11,20251201 - Fixed Cases,20251201,Fixed Cases,52527,-1211
+12,20251201 - Newly Out-of-Sync,20251201,Newly Out-of-Sync,52781,957
+13,20251201 - Snapshot Total,20251201,Snapshot Total,0,53738
+14,20260101 - Fixed Cases,20260101,Fixed Cases,51053,-1832
+15,20260101 - Newly Out-of-Sync,20260101,Newly Out-of-Sync,52395,490
+16,20260101 - Snapshot Total,20260101,Snapshot Total,0,52885
