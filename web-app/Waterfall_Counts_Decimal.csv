@@ -1,0 +1,17 @@
+Month,Type,Value,Base,Sort
+20250801,Snapshot Total,5396.3,0,1
+20250901,Fixed Cases,-867,5309.6,2
+20250901,Newly Out-of-Sync,1038,5309.6,3
+20250901,Snapshot Total,5413,0,4
+20251001,Fixed Cases,-2422,5170.8,5
+20251001,Newly Out-of-Sync,519,5196.9,6
+20251001,Snapshot Total,5248.8,0,7
+20251101,Fixed Cases,-343,5364.8,8
+20251101,Newly Out-of-Sync,1525,5246.6,9
+20251101,Snapshot Total,5399.1,0,10
+20251201,Fixed Cases,-1211,5252.7,11
+20251201,Newly Out-of-Sync,957,5278.1,12
+20251201,Snapshot Total,5373.8,0,13
+20260101,Fixed Cases,-1832,5105.3,14
+20260101,Newly Out-of-Sync,490,5239.5,15
+20260101,Snapshot Total,5288.5,0,16
