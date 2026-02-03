@@ -1,0 +1,33 @@
+name: Update Waterfall Chart
+
+on:
+  push:
+    paths:
+      - 'web-app/BLM_Waterfall_Counts_Flattened.csv' # Triggers when this file changes
+  workflow_dispatch: # Allows you to run it manually for testing
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Libraries
+        run: pip install pandas plotly
+
+      - name: Run Script
+        run: python web-app/generate_waterfall.py
+
+      - name: Commit and Push Chart
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add web-app/index.html
+          git commit -m "Update waterfall chart" || exit 0
+          git push
