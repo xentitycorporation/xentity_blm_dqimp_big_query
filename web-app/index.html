@@ -3,25 +3,225 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Waterfall</title>
+  <title>Waterfall Month-to-Month</title>
 
-  <!-- Plotly CDN -->
+  <!-- Plotly -->
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-
-  <!-- PapaParse for CSV parsing -->
+  <!-- CSV parser -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <style>
-    html, body { height: 100%; margin: 0; }
-    #chart { width: 100%; height: 80vh; }
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     .wrap { padding: 12px; }
+    #chart { width: 100%; height: 80vh; }
+    .note { font-size: 12px; opacity: 0.75; margin-top: 6px; }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div id="chart"></div>
+    <div class="note">
+      Tip: replace the CSV monthly (same filename/path) and the chart updates automatically.
+    </div>
   </div>
 
-  <script src="./app.js"></script>
+  <script>
+    // ✅ Update if your filename/path changes
+    const CSV_URL =
+      "https://raw.githubusercontent.com/xentitycorporation/xentity_blm_dqimp_big_query/main/web-app/Waterfall_Counts_Decimal.csv";
+
+    function parseNumber(x) {
+      const n = Number(x);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function fmt(n) {
+      const num = Number(n) || 0;
+      // show integers with commas (matches your screenshot vibe)
+      return num.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    }
+
+    function findValue(rows, month, typeIncludes) {
+      const hit = rows.find(r =>
+        r.Month === month &&
+        String(r.Type || "").toLowerCase().includes(typeIncludes)
+      );
+      return hit ? hit.Value : null;
+    }
+
+    function render(rowsRaw) {
+      // Normalize rows
+      const rows = rowsRaw
+        .filter(r => r.Month && r.Type)
+        .map(r => ({
+          Month: parseNumber(r.Month),
+          Type: String(r.Type).trim(),
+          Value: parseNumber(r.Value),
+          Sort: parseNumber(r.Sort),
+        }));
+
+      // Collect months, sorted ascending
+      const months = [...new Set(rows.map(r => r.Month))].sort((a, b) => a - b);
+
+      // Need at least 2 months to show month-to-month cycle
+      if (months.length < 2) {
+        Plotly.newPlot("chart", [{
+          type: "scatter",
+          x: [0],
+          y: [0],
+          mode: "text",
+          text: ["Need at least 2 months in the CSV to build month-to-month waterfall."]
+        }], { title: "Waterfall" }, { responsive: true });
+        return;
+      }
+
+      // Build the long waterfall arrays
+      const x = [];
+      const y = [];
+      const measure = [];
+      const text = [];
+
+      // First month: snapshot as baseline (absolute)
+      const m0 = months[0];
+      const snap0 = findValue(rows, m0, "snapshot");
+      if (snap0 == null) {
+        Plotly.newPlot("chart", [{
+          type: "scatter",
+          x: [0],
+          y: [0],
+          mode: "text",
+          text: ["Missing 'Snapshot Total' for the first month in CSV."]
+        }], { title: "Waterfall" }, { responsive: true });
+        return;
+      }
+
+      x.push(String(m0));          // label like 20250101 (as in your screenshot)
+      y.push(snap0);
+      measure.push("absolute");
+      text.push(fmt(snap0));
+
+      // For each subsequent month:
+      // Fixes (relative) + Newly (relative) + Snapshot Total (total)
+      for (let i = 1; i < months.length; i++) {
+        const m = months[i];
+
+        const fixes = findValue(rows, m, "fixed");
+        const newly = findValue(rows, m, "newly");
+        const snap = findValue(rows, m, "snapshot");
+
+        if (fixes == null || newly == null || snap == null) {
+          // Skip months with incomplete data rather than crashing
+          continue;
+        }
+
+        // Fixes
+        x.push("Fixes");
+        y.push(fixes);
+        measure.push("relative");
+        text.push(fixes >= 0 ? `+${fmt(fixes)}` : `-${fmt(Math.abs(fixes))}`);
+
+        // Newly Out-of-Sync
+        x.push("Newly Out-of-Sync");
+        y.push(newly);
+        measure.push("relative");
+        text.push(newly >= 0 ? `+${fmt(newly)}` : `-${fmt(Math.abs(newly))}`);
+
+        // Snapshot total for this month
+        x.push(String(m));
+        y.push(snap);
+        measure.push("total");
+        text.push(fmt(snap));
+      }
+
+      // Waterfall trace (colors: totals blue, fixes green (decreasing), newly red (increasing))
+      const wf = {
+        type: "waterfall",
+        x,
+        y,
+        measure,
+        text,
+        textposition: "outside",
+        cliponaxis: false,
+        hovertemplate: "<b>%{x}</b><br>Value: %{text}<extra></extra>",
+        connector: { line: { width: 1 } },
+        marker: {
+          // These control the automatic coloring categories
+          increasing: { color: "#d62728" }, // red for "Newly Out-of-Sync" (positive)
+          decreasing: { color: "#2ca02c" }, // green for "Fixes" (negative)
+          totals:     { color: "#1f77b4" }  // blue for snapshots
+        },
+        showlegend: false
+      };
+
+      // Dummy legend items (so you get a legend like your screenshot)
+      const legendSnapshot = {
+        type: "scatter",
+        mode: "markers",
+        x: [null], y: [null],
+        marker: { size: 12, color: "#1f77b4" },
+        name: "Snapshot Total (Blue)",
+        hoverinfo: "skip"
+      };
+
+      const legendFixes = {
+        type: "scatter",
+        mode: "markers",
+        x: [null], y: [null],
+        marker: { size: 12, color: "#2ca02c" },
+        name: "Fixed Cases (Green)",
+        hoverinfo: "skip"
+      };
+
+      const legendNewly = {
+        type: "scatter",
+        mode: "markers",
+        x: [null], y: [null],
+        marker: { size: 12, color: "#d62728" },
+        name: "Newly Out-of-Sync (Red)",
+        hoverinfo: "skip"
+      };
+
+      const layout = {
+        title: "Waterfall of Sync Errors Month to Month",
+        margin: { t: 70, r: 20, b: 130, l: 70 },
+        yaxis: { title: "Count" },
+        xaxis: {
+          automargin: true,
+          tickangle: -30
+        },
+        legend: {
+          orientation: "h",
+          x: 0,
+          y: -0.25
+        }
+      };
+
+      Plotly.newPlot(
+        "chart",
+        [wf, legendSnapshot, legendFixes, legendNewly],
+        layout,
+        { responsive: true }
+      );
+    }
+
+    Papa.parse(CSV_URL, {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: (results) => render(results.data),
+      error: (err) => {
+        console.error(err);
+        Plotly.newPlot("chart", [{
+          type: "scatter",
+          x: [0],
+          y: [0],
+          mode: "text",
+          text: ["Failed to load CSV. Check CSV_URL / permissions / filename."]
+        }], { title: "Waterfall" }, { responsive: true });
+      }
+    });
+  </script>
 </body>
 </html>
+
