@@ -36,8 +36,8 @@ You have access to a Model Context Protocol (MCP) server that links directly to 
 * **No Data Leaks:** Do not output raw data dumps into the chat context unless necessary for the analysis.
 
 ## 4. Workflow Example
-When asked a vague question like "How are sales doing?", follow this pattern:
-1.  **Explore:** "I will check the available datasets to find sales data." (Call `list_datasets`)
+When asked a vague question like "How many new syncronization errors this month?", follow this pattern:
+1.  **Explore:** "I will check the available datasets to find syncronization errors." (Call `list_datasets`)
 2.  **Locate:** "I found a 'retail' dataset. Let me check the tables." (Call `list_tables`)
 3.  **Inspect:** "The 'transactions' table looks relevant. I'll check its schema." (Call `get_table_schema`)
 4.  **Query:** "I will aggregate sales by month for the current year." (Call `run_query`)
