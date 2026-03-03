@@ -1,0 +1,24 @@
+DECLARE snapshot_date STRING DEFAULT '20250901';
+
+EXECUTE IMMEDIATE FORMAT("""
+    SELECT DISTINCT
+        NAME,
+        CASE_TYPE_CODE
+    FROM `blm_seta_dqimp.blm_product_%s`
+    WHERE 
+        CASE_TYPE_CODE IN ('000445', '007500', '186500', '254100', '256301', '262400', '386200', '386210', '386300', '386310', '386400', '386403', '386501') 
+        OR CASE_TYPE_CODE LIKE '23%%' 
+        OR (
+            (
+                CASE_TYPE_CODE LIKE '00%%' OR CASE_TYPE_CODE LIKE '16%%' OR CASE_TYPE_CODE LIKE '17%%' OR 
+                CASE_TYPE_CODE LIKE '18%%' OR CASE_TYPE_CODE LIKE '20%%' OR CASE_TYPE_CODE LIKE '21%%' OR 
+                CASE_TYPE_CODE LIKE '22%%' OR CASE_TYPE_CODE LIKE '24%%' OR CASE_TYPE_CODE LIKE '25%%' OR 
+                CASE_TYPE_CODE LIKE '26%%' OR CASE_TYPE_CODE LIKE '27%%' OR CASE_TYPE_CODE LIKE '50%%' OR 
+                CASE_TYPE_CODE LIKE '54%%' OR CASE_TYPE_CODE LIKE '55%%' OR CASE_TYPE_CODE LIKE '60%%' OR 
+                CASE_TYPE_CODE LIKE '65%%' OR CASE_TYPE_CODE LIKE '82%%' OR CASE_TYPE_CODE LIKE '83%%' OR 
+                CASE_TYPE_CODE LIKE '85%%'
+            ) 
+            AND (LOWER(CASE_RECORD_TYPES) NOT LIKE 'land transfer%%' OR CASE_RECORD_TYPES IS NULL)
+        )
+    ORDER BY NAME
+""", snapshot_date);

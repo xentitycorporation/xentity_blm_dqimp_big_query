@@ -1,0 +1,36 @@
+sources:
+  sandbox-dqimp:
+    kind: bigquery
+    project: xentity-sandbox-huy
+    location: us
+tools:
+  execute_sql_tool:
+    kind: bigquery-execute-sql
+    source: sandbox-dqimp
+    description: Use this tool to execute sql statement.
+  bigquery_get_dataset_info:
+    kind: bigquery-get-dataset-info
+    source: sandbox-dqimp
+    description: Use this tool to get dataset metadata.
+  bigquery_get_table_info:
+    kind: bigquery-get-table-info
+    source: sandbox-dqimp
+    description: Use this tool to get table metadata.
+  bigquery_list_dataset_ids:
+    kind: bigquery-list-dataset-ids
+    source: sandbox-dqimp
+    description: Use this tool to get dataset metadata.
+  bigquery_list_table_ids:
+    kind: bigquery-list-table-ids
+    source: sandbox-dqimp
+    description: Use this tool to get table metadata.
+  search_catalog:
+    kind: bigquery-search-catalog
+    source: sandbox-dqimp
+    description: Use this tool to find tables, views, models, routines or connections.
+  ask_data_insights:
+    kind: bigquery-conversational-analytics
+    source: sandbox-dqimp
+    description: |
+      Use this tool to perform data analysis, get insights, or answer complex 
+      questions about the contents of specific BigQuery tables.
