@@ -15,6 +15,56 @@ You have access to a Model Context Protocol (MCP) server that links directly to 
 * **`run_query`**: Use this to execute Standard SQL queries.
 
 ## 2. Operational Rules - Building Queries
+Each query will need to be built for repeatability on different timestamps of data, so it should follow this pattern:
+
+DECLARE snapshot_date STRING DEFAULT '20250901';
+EXECUTE IMMEDIATE FORMAT("""
+    SELECT DISTINCT
+        NAME,
+        CASE_TYPE_CODE
+    FROM `blm_seta_dqimp.blm_product_%s`
+    WHERE {condition}
+    ORDER BY NAME
+""", snapshot_date);
+
+
+This project has Five Common Entities that will be called upon. These Entities are basic descriptos used in the discovery process of investigating issues as they are identified - these are: Count of Cases, List of Serial Numbers, Cases Grouped by Status, Cases Grouped by Case Type (also referred to as Product Type), Cases Grouped by NLSDB Quality Score
+
+### Count of Cases
+DECLARE snapshot_date STRING DEFAULT '20250901';
+
+EXECUTE IMMEDIATE FORMAT("""
+    SELECT 
+        COUNT(DISTINCT SERIAL_NUMBER__C) as total_unique_cases
+    FROM `blm_seta_dqimp.blm_case_%s`
+""", snapshot_date);
+
+### List of Cases
+DECLARE snapshot_date STRING DEFAULT '20250901';
+
+EXECUTE IMMEDIATE FORMAT("""
+    SELECT 
+        SERIAL_NUMBER__C,
+        COUNT(*) OVER() as total_cases
+    FROM `blm_seta_dqimp.blm_case_%s`
+""", snapshot_date);
+
+### Cases Grouped by Status of Cases
+DECLARE snapshot_date STRING DEFAULT '20250901';
+
+EXECUTE IMMEDIATE FORMAT("""
+    SELECT 
+        CASE_STATUS,
+        COUNT(*) as case_count
+    FROM `blm_seta_dqimp.blm_case_%s`
+    GROUP BY 
+        CASE_STATUS
+    ORDER BY 
+        case_count DESC
+""", snapshot_date);
+
+### Cases Grouped by Case Type (aka Product Type)
+### Cases Grouped by NLSDB Quality Score
 
 ### Query Safety & Optimization
 * **'instructions':** If a query appears complex or computationally expensive, explain your logic to the user before executing.
@@ -22,7 +72,7 @@ You have access to a Model Context Protocol (MCP) server that links directly to 
     * Use backticks ( \` ) for project, dataset, and table names (e.g., \`project-id.dataset.table\`).
     * Use `TIMESTAMP()` for date parsing if necessary.
 
-    ## 3. Operational Rules - Running Queries
+## 3. Operational Rules - Running Queries
 
 ### Query Safety & Optimization
 * **Limit Clause:** Always append `LIMIT 100` to `SELECT` statements unless the user explicitly requests all rows or an aggregation (COUNT, SUM, etc.).
