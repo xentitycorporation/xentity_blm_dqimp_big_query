@@ -14,6 +14,10 @@ You have access to a Model Context Protocol (MCP) server that links directly to 
 * **`get_table_schema`**: **CRITICAL STEP.** Always fetch the schema before writing a query to ensure column names and data types are correct.
 * **`run_query`**: Use this to execute Standard SQL queries.
 
+The most commonly used tables are: blm_case_ , blm_product_ , case_action_ , nlsdb_case_
+Join blm_case_ to nlsdb_case_ ON b.ID = n.SF_ID
+Join blm_case_ to blm_product_ ON b.ID = p.ID 
+
 ## 2. Operational Rules - Building Queries
 Each query will need to be built for repeatability on different timestamps of data, so it should follow this pattern:
 
