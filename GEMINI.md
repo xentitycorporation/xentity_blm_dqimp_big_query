@@ -8,13 +8,13 @@
 ## 1. Capabilities & Tool Usage
 You have access to a Model Context Protocol (MCP) server that links directly to BigQuery. You must use the following tools to fulfill requests:
 
-* **agent_mcpserver**: use this github folder for instructions on the MCP Server.
-* **`list_datasets`**: Use this first to explore what data is available.
-* **`list_tables`**: Use to find specific tables within a dataset.
-* **`get_table_schema`**: **CRITICAL STEP.** Always fetch the schema before writing a query to ensure column names and data types are correct.
+* **agent_mcpserver**: Located in GitHub. use this github folder for instructions on the MCP Server.
+* **blm_seta_dqimp**: Located in GCP. All tables in this dataset have a monthly snapshot associated with them. These are the primary exported tables from MLRS and no other data should be used as a source. Each table with monthly snapshots corresponds to a schema file. There are two tables Case Type Groups and Case Type Subgroups in this folder that do not have multiple snapshots because they are the lookup tables that were created outside of the MLRS extracts to generate Case Type Groups from BLM Product Codes.
+* **`'blm_case_', 'blm_product_' 'nlsdb_case_', 'case_action_**: Located in GCP. The most commonly used tables of the MLRS extract tables with monthly snapshots in the blm_seta-dqimp dataset..
+* **schemas>mlrs_export_schemas**:  Located in GitHub. These schemas do not have definitions or join instructions associated with them, they are purely to reference the field names in each table. Reference first the Operational Rules of this document for join instructions, and use the tests>core_elements folder in GitHub to understand which fields to join on. Always fetch the correct fields before writing a query to ensure column names and data types are correct, do not assume based on the schema that a field should be used as there are many misleading field names associated with this project.
 * **`run_query`**: Use this to execute Standard SQL queries.
 
-The most commonly used tables are: blm_case_ , blm_product_ , case_action_ , nlsdb_case_
+The join operand for the most commonly used tables are between: blm_case_ , blm_product_ , case_action_ , nlsdb_case_
 Join blm_case_ to nlsdb_case_ ON b.ID = n.SF_ID
 Join blm_case_ to blm_product_ ON b.ID = p.ID 
 
@@ -68,7 +68,31 @@ EXECUTE IMMEDIATE FORMAT("""
 """, snapshot_date);
 
 ### Cases Grouped by Case Type (aka Product Type)
+DECLARE snapshot_date STRING DEFAULT '20260201';
+DECLARE blm_case_table STRING;
+DECLARE blm_product_table STRING;
+DECLARE lookup_table STRING DEFAULT 'xentity-sandbox-huy.blm_seta_dqimp.Product_Codes_in_Case_Type_Groups';
+SET blm_case_table = CONCAT('xentity-sandbox-huy.blm_seta_dqimp.blm_case_', snapshot_date);
+SET nlsdb_case_table = CONCAT('xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_', snapshot_date);
+SET blm_product_table = CONCAT('xentity-sandbox-huy.blm_seta_dqimp.blm_product_', snapshot_date);
+ EXECUTE IMMEDIATE FORMAT"""
+    WITH 
+      SELECT 'Mining Claims' AS Case_Type UNION ALL
+      SELECT 'Fluid Minerals' UNION ALL
+      SELECT 'Solid Minerals' UNION ALL
+      SELECT 'Land Use Authorizations' UNION ALL
+      SELECT 'Land Tenure' UNION ALL
+      SELECT 'Land Transfer' UNION ALL
+      SELECT 'Surveys'
+       SELECT ct.Case_Type, ls.Legacy_Status
+      FROM ExpectedCaseTypes ct
+      CROSS JOIN LegacyStatuses ls
+""", blm_case_table, nlsdb_case_table, blm_product_table, lookup_table);
+END;
+
+
 ### Cases Grouped by NLSDB Quality Score
+*SECTION INCOMPLETE AS OF 3/16/2026*
 
 ### Query Safety & Optimization
 * **'instructions':** If a query appears complex or computationally expensive, explain your logic to the user before executing.
@@ -89,7 +113,7 @@ EXECUTE IMMEDIATE FORMAT("""
 * **PII Redaction:** If you encounter Personally Identifiable Information (email, phone numbers, SSN) in result sets, obfuscate it (e.g., `j***@gmail.com`) unless explicitly told otherwise.
 * **No Data Leaks:** Do not output raw data dumps into the chat context unless necessary for the analysis.
 
-## 4. Workflow Example
+## 4. Workflow Example *SECTION INCOMPLETE AS OF 3/16/2026*
 When asked a vague question like "How many new syncronization errors this month?", follow this pattern:
 1.  **Explore:** "I will check the available datasets to find syncronization errors." (Call `list_datasets`)
 2.  **Locate:** "I found a 'retail' dataset. Let me check the tables." (Call `list_tables`)
@@ -97,7 +121,7 @@ When asked a vague question like "How many new syncronization errors this month?
 4.  **Query:** "I will aggregate sales by month for the current year." (Call `run_query`)
 
 
-## .5 Interaction Modes
+## .5 Interaction Modes *SECTION INCOMPLETE AS OF 3/16/2026*
 You must determine the user's intent and select the correct mode:
 
 ### Mode A: Analyst (Direct MCP Execution)
@@ -110,7 +134,7 @@ You must determine the user's intent and select the correct mode:
 
 ---
 
-## 6. MCP Tool Protocol (Strict)
+## 6. MCP Tool Protocol (Strict) *SECTION INCOMPLETE AS OF 3/16/2026*
 When operating in **Mode A (Analyst)**, you must follow this safety sequence:
 
 1.  **Discovery:** If the dataset is unknown, call `list_datasets`.
@@ -122,7 +146,7 @@ When operating in **Mode A (Analyst)**, you must follow this safety sequence:
 
 ---
 
-## 7. Coding Standards (for Repository Code)
+## 7. Coding Standards (for Repository Code) *SECTION INCOMPLETE AS OF 3/16/2026*
 When generating code for this repository (**Mode B**), adhere to these project defaults:
 
 * **Language:** sql for Big Query and Google Cloud.
@@ -134,7 +158,7 @@ When generating code for this repository (**Mode B**), adhere to these project d
     * Parameterize all user inputs (use `@params`).
 
 ### Example: Preferred Code Pattern
-```sql
+```Use the declare snapshot date method with every script created because data quality testing requires looking at test results from multiple snapshots.
 
 DECLARE snapshot_date STRING DEFAULT '20250901';
 
