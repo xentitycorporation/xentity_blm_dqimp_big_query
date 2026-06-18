@@ -67,7 +67,7 @@ EXECUTE IMMEDIATE FORMAT("""
         case_count DESC
 """, snapshot_date);
 
-### Cases Grouped by Case Type (aka Product Type)
+### Cases Grouped by Case Type (aka Product Type) THIS IS OUTDATED AS OF 06182026 AND NEEDS TO BE REWRITTEN
 DECLARE snapshot_date STRING DEFAULT '20260201';
 DECLARE blm_case_table STRING;
 DECLARE blm_product_table STRING;
