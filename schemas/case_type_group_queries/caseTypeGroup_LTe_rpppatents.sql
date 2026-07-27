@@ -8,6 +8,6 @@ EXECUTE IMMEDIATE FORMAT("""
     FROM `blm_seta_dqimp.blm_product_%s`
     WHERE 
         CASE_TYPE_CODE IN ('274002', '274003', '274004', '274005', '274006', '274200') 
-            AND (LOWER(CASE_RECORD_TYPES) NOT LIKE 'land transfer%%' OR CASE_RECORD_TYPES IS NULL)
+            AND (LOWER(CASE_RECORD_TYPES) NOT LIKE 'land_transfer%%' OR CASE_RECORD_TYPES IS NULL)
     ORDER BY NAME
 """, snapshot_date);
