@@ -9,6 +9,6 @@ EXECUTE IMMEDIATE FORMAT("""
         (
             CASE_TYPE_CODE LIKE '21%%'
         ) 
-        AND (LOWER(CASE_RECORD_TYPES) NOT LIKE 'land transfer%%' OR CASE_RECORD_TYPES IS NULL)
+        AND (LOWER(CASE_RECORD_TYPES) NOT LIKE 'land_transfer%%' OR CASE_RECORD_TYPES IS NULL)
     ORDER BY NAME
 """, snapshot_date);
