@@ -1,5 +1,5 @@
 DECLARE snapshot_date STRING DEFAULT '20250901';
-DECLARE lookup_table STRING DEFAULT 'xentity-sandbox-huy.blm_seta_dqimp.Product_Code_with_Case_Type_Subgroups';
+DECLARE lookup_table STRING DEFAULT 'xentity-sandbox-huy.blm_seta_dqimp.Product_Code_Case_Type_Group_Subgroup';
 
 EXECUTE IMMEDIATE FORMAT("""
   WITH dedup_product AS (
