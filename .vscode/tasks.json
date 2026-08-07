@@ -1,0 +1,96 @@
+{
+  // VS Code tasks for running this repo's .sql files against BigQuery.
+  //
+  // ############################################################################
+  // OPEN THE REPO FOLDER AS THE WORKSPACE -- NOT ITS PARENT.
+  //
+  //   File > Open Folder > ...\BLM_DQIMP_GitRepo\xentity_blm_dqimp_big_query
+  //
+  // Opening the parent (BLM_DQIMP_GitRepo) breaks two things at once:
+  //   1. Git is not detected -- .git lives in this folder, not the parent -- so the
+  //      branch indicator and Source Control panel do not work.
+  //   2. The CSV task resolves its output folder as <parent of workspace>\Query_Results.
+  //      With the parent open that becomes E:\Xentity\BLM\Query_Results, which is the
+  //      WRONG location and gets silently created rather than erroring.
+  // You know it is correct when the bottom-left status bar shows `main`.
+  // ############################################################################
+  //
+  // Usage: open any .sql file, then Ctrl+Shift+P -> "Tasks: Run Task" -> pick one.
+  //   (Or bind a key: Ctrl+K Ctrl+S -> search "Run Task".)
+  //
+  // WHY PIPE ON STDIN INSTEAD OF PASSING THE FILE AS AN ARGUMENT:
+  //   Many queries in this repo start with `--` comment lines. Passing those to `bq`
+  //   as a quoted CLI argument breaks it (bq parses leading `--` as flags). Piping the
+  //   file contents on stdin avoids this. See KB section 4.17.4.
+  //
+  // WHY POWERSHELL AND `Get-Content` INSTEAD OF `< file`:
+  //   PowerShell does not support the `<` input-redirection operator. `Get-Content <file> |`
+  //   is the PowerShell equivalent. Verified 2026-08-07 on Windows PowerShell 5.1.
+  //
+  // Auth: uses whatever account `gcloud auth login` established. If a task fails with
+  //   "Reauthentication failed", run `gcloud auth login` in the terminal and retry.
+  "version": "2.0.0",
+  "options": {
+    "shell": {
+      "executable": "powershell.exe",
+      "args": ["-NoProfile", "-Command"]
+    }
+  },
+  "presentation": {
+    "reveal": "always",
+    "panel": "dedicated",
+    "clear": true
+  },
+  "tasks": [
+    {
+      "label": "BigQuery: Dry run (validate / estimate bytes, no charge)",
+      // CAVEAT (verified 2026-08-07): --dry_run reports real byte estimates ONLY for plain
+      // static SQL. For the DECLARE + EXECUTE IMMEDIATE FORMAT(...) pattern used by most
+      // queries in this repo, BigQuery cannot analyse the dynamic SQL statically and always
+      // reports "0 bytes". On those scripts this task confirms the script PARSES, but tells
+      // you nothing about cost. To estimate cost for a parameterized query, paste the inner
+      // SELECT with the snapshot date hardcoded and dry-run that instead.
+      "detail": "Validates SQL without running or billing it. NOTE: reports 0 bytes for EXECUTE IMMEDIATE scripts - syntax check only, not a cost estimate.",
+      "type": "shell",
+      "command": "Get-Content '${file}' | bq query --use_legacy_sql=false --dry_run",
+      "problemMatcher": []
+    },
+    {
+      "label": "BigQuery: Run current SQL file",
+      // The `$raw / $m / $clean` dance strips bq's echo of the assembled dynamic SQL.
+      // For DECLARE + EXECUTE IMMEDIATE scripts, bq prints the generated statement to
+      // STDOUT before the results, ending in lines like `-- at Dynamic SQL[2:5]` and
+      // `-- at [3:1]`. We find the LAST line starting with `-- at ` and keep everything
+      // after it. On plain static SQL there is no such marker and the output passes
+      // through untouched. Verified both cases 2026-08-07.
+      "detail": "Runs the active .sql file and prints a results table in the terminal.",
+      "type": "shell",
+      "command": "$raw = Get-Content '${file}' | bq query --use_legacy_sql=false --format=pretty --max_rows=200; $m = ($raw | Select-String -Pattern '^-- at ' | Select-Object -Last 1).LineNumber; if($m){ $raw | Select-Object -Skip $m } else { $raw }",
+      "problemMatcher": []
+    },
+    {
+      "label": "BigQuery: Run current SQL file -> CSV",
+      // SAFETY: results are written OUTSIDE the repo, to the sibling Query_Results folder:
+      //     E:\Xentity\BLM\BLM_DQIMP_GitRepo\
+      //         Query_Results\              <-- outputs land here (NOT version controlled)
+      //         xentity_blm_dqimp_big_query\  <-- this repo
+      //
+      // THIS REPOSITORY IS PUBLIC (verified 2026-08-07 via the GitHub API:
+      // visibility=public, private=false). Query results contain live BLM case data --
+      // serial numbers, case names, dispositions, legal land descriptions. Writing them
+      // inside the working tree risks a `git add .` publishing BLM data to the open
+      // internet. Keeping outputs outside the repo makes that mistake impossible rather
+      // than merely unlikely.
+      //
+      // The path is derived as <parent of workspace folder>\Query_Results rather than
+      // hardcoded, so moving the whole BLM_DQIMP_GitRepo folder does not break this task.
+      //
+      // .gitignore also blocks *_results.csv as a second layer, in case someone later
+      // points a query output at the repo folder anyway.
+      "detail": "Runs the active .sql file and writes results to the sibling Query_Results folder (deliberately OUTSIDE this public repo).",
+      "type": "shell",
+      "command": "$out = Join-Path (Split-Path '${workspaceFolder}' -Parent) 'Query_Results'; if(!(Test-Path $out)){New-Item -ItemType Directory -Force -Path $out | Out-Null}; $dest = Join-Path $out ('${fileBasenameNoExtension}_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.csv'); $raw = Get-Content '${file}' | bq query --use_legacy_sql=false --format=csv --max_rows=100000; $m = ($raw | Select-String -Pattern '^-- at ' | Select-Object -Last 1).LineNumber; $clean = if($m){ $raw | Select-Object -Skip $m } else { $raw }; $clean | Out-File -Encoding utf8 $dest; Write-Host \"Wrote $dest ($($clean.Count - 1) data rows)\"",
+      "problemMatcher": []
+    }
+  ]
+}
