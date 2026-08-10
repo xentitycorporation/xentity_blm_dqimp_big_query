@@ -202,8 +202,8 @@ Each is loaded as `blm_seta_dqimp.<table_lower>_<YYYYMMDD>`.
 | SUPPLEMENTAL_USE | `supplemental_use_YYYYMMDD` | `supplemental_use_schema.json` |
 | US_RIGHT_CASE_LAND | `us_right_case_land_YYYYMMDD` | `us_right_case_land_schema.json` |
 
-Schema `.json` files live at:
-`E:\Xentity\BLM\DQIMP\Data\schemas\`
+Schema `.json` files live in this repo at `schemas/mlrs_export_schemas/` and are located
+automatically at runtime — see "Schema resolution" below.
 
 ## NLSDB Tables Loaded to BigQuery (2 tables; 3 on public-extract months)
 
@@ -331,8 +331,8 @@ fails with a benign WARNING. **Never let Status Records into `nlsdb_case_*` — 
 
 ## File Inventory
 
-BQ-loading scripts live in this repo:
-`E:\Xentity\BLM\Dev\BLM_Claude_Repository\Google_Cloud_Data_Loading\`
+All build scripts live in this repo, in `build/`. The repo is the single source of truth for
+them — do not keep or edit master copies anywhere else.
 
 **Upstream extract pipeline (public-extract months only)** now lives with the loading scripts in
 `Public_Extract_Specific\`, alongside its own end-to-end SOP,
@@ -353,11 +353,21 @@ consume. That document is authoritative for the upstream half; `MLRS_Database_Qu
 | `Public_Extract_Specific\extract_feature_service.py` | Python | Pulls the BLM public REST endpoints to per-endpoint gpkgs. **Public-extract months only.** Check the URL list before running |
 | `Public_Extract_Specific\merge_public_extract.ipynb` | Notebook | Merges per-endpoint gpkgs/parquets into one gpkg with `nlsdb_case` + `case_lands`; third cell validates gpkg against the converted GDB |
 
-> **Schema JSONs are located automatically.** Both `prepare_snapshot*.py` and both PS1s search,
-> in order: the repo's `schemas\mlrs_export_schemas\`, a `schemas\` folder beside the script,
-> then `E:\Xentity\BLM\DQIMP\Data\schemas`. First folder that actually contains `*_schema.json`
-> files wins; `--schema-dir` / `-SchemaDir` overrides the search. No path is hardcoded to one
-> workstation (changed 2026-08-10).
+### Schema resolution
+
+**No path to any particular workstation appears in any script** (changed 2026-08-10). The repo's
+own `schemas/mlrs_export_schemas/` is the single source of truth for the 24 BQ schema JSONs. Both
+`prepare_snapshot*.py` and both PS1s locate it at runtime, in this order:
+
+1. **Any ancestor directory containing `schemas/mlrs_export_schemas`** — i.e. the repo, found by
+   walking up from the script. Works at any folder depth.
+2. A `schemas/` folder sitting beside the script.
+3. **`$BLM_DQIMP_SCHEMA_DIR`** — an environment variable, for running from a month folder outside
+   the repo (see Step 1).
+
+First candidate that actually contains `*_schema.json` files wins. `--schema-dir` / `-SchemaDir`
+overrides the search entirely. If nothing is found, the script prints every location it searched
+and exits rather than guessing.
 
 ### Upstream extract pipeline
 
@@ -452,22 +462,39 @@ the dev env. See Known Issues for background on why this matters.
 
 ### Step 1 — Create the month folder and copy the scripts into it
 
-Each month gets its own self-contained folder. Create it, then copy both scripts into it:
+Each month gets its own folder holding that month's data. **Month folders live outside this
+repo**, under `E:\Xentity\BLM\DQIMP\Data\<Month_Year>\`, because they hold multi-GB zips,
+GDBs, Parquet files and run logs. **Never create one inside the repo working tree** — this repo
+is public, and the data is live BLM case data. The same reasoning applies to `Query_Results\`.
+
+Create the folder, then copy the two scripts into it from the repo:
 
 ```powershell
-# Create the month folder (change June_2026 to match the current month)
-mkdir "E:\Xentity\BLM\Dev\BLM_Claude_Repository\Google_Cloud_Data_Loading\June_2026"
+# Create the month folder (change September_2026 to match the current month)
+mkdir "E:\Xentity\BLM\DQIMP\Data\September_2026"
 
-# Copy the two scripts into it
-copy "E:\Xentity\BLM\Dev\BLM_Claude_Repository\Google_Cloud_Data_Loading\prepare_snapshot.py" `
-     "E:\Xentity\BLM\Dev\BLM_Claude_Repository\Google_Cloud_Data_Loading\June_2026\"
+# Copy the two scripts in from the repo
+copy "E:\Xentity\BLM\BLM_DQIMP_GitRepo\xentity_blm_dqimp_big_query\build\prepare_snapshot.py" `
+     "E:\Xentity\BLM\DQIMP\Data\September_2026\"
 
-copy "E:\Xentity\BLM\Dev\BLM_Claude_Repository\Google_Cloud_Data_Loading\BLM_DQIMP_OneStop_param_v4.ps1" `
-     "E:\Xentity\BLM\Dev\BLM_Claude_Repository\Google_Cloud_Data_Loading\June_2026\"
+copy "E:\Xentity\BLM\BLM_DQIMP_GitRepo\xentity_blm_dqimp_big_query\build\BLM_DQIMP_OneStop_param_v4.ps1" `
+     "E:\Xentity\BLM\DQIMP\Data\September_2026\"
 ```
 
-> **Going forward, the master copies of both scripts live in `Google_Cloud_Data_Loading\`.
-> Copy them into each new month folder — do not edit the copies in the month folders.**
+> **The master copies of both scripts live in this repo, in `build/`.** Copy them into each new
+> month folder — never edit the copies in a month folder, and never treat a month-folder copy as
+> the source. Fixes go into the repo and flow outward.
+
+> **Set `BLM_DQIMP_SCHEMA_DIR` once per machine.** Scripts running from a month folder have no
+> repo above them, so they cannot find `schemas/mlrs_export_schemas` by walking up. Point the
+> variable at the repo clone so month runs and repo runs read the identical schema files:
+>
+> ```powershell
+> [Environment]::SetEnvironmentVariable('BLM_DQIMP_SCHEMA_DIR', 'E:\Xentity\BLM\BLM_DQIMP_GitRepo\xentity_blm_dqimp_big_query\schemas\mlrs_export_schemas', 'User')
+> ```
+>
+> Open a new terminal afterwards. Alternatively pass `--schema-dir` / `-SchemaDir` on every run.
+> If neither is set, the scripts stop and list what they searched — they never silently guess.
 
 ---
 
@@ -476,12 +503,12 @@ copy "E:\Xentity\BLM\Dev\BLM_Claude_Repository\Google_Cloud_Data_Loading\BLM_DQI
 BLM delivers three zip files each month. Copy them into the month folder:
 
 ```
-June_2026\
-  2026-06-07_MLRS_Full.zip      ← MLRS Full extract from BLM
-  2026-06-07_MLRS_MC.zip        ← MLRS Mining Claims extract from BLM
-  2026-06-08_NLSDB.gdb.zip      ← NLSDB File Geodatabase from BLM
-  prepare_snapshot.py            ← copied in Step 1
-  BLM_DQIMP_OneStop_param_v4.ps1 ← copied in Step 1
+E:\Xentity\BLM\DQIMP\Data\September_2026\
+  2026-09-06_MLRS_Full.zip      ← MLRS Full extract from BLM
+  2026-09-06_MLRS_MC.zip        ← MLRS Mining Claims extract from BLM
+  2026-09-08_NLSDB.gdb.zip      ← NLSDB File Geodatabase from BLM
+  prepare_snapshot.py            ← copied from the repo in Step 1
+  BLM_DQIMP_OneStop_param_v4.ps1 ← copied from the repo in Step 1
 ```
 
 Zip file naming conventions from BLM:
@@ -498,7 +525,7 @@ Zip file naming conventions from BLM:
 Verify the three zips are present before continuing:
 
 ```powershell
-cd "E:\Xentity\BLM\Dev\BLM_Claude_Repository\Google_Cloud_Data_Loading\June_2026"
+cd "E:\Xentity\BLM\DQIMP\Data\September_2026"
 ls *.zip
 ```
 
@@ -515,7 +542,7 @@ Navigate to the month folder and run the script with no arguments:
 
 ```powershell
 conda activate dev
-cd "E:\Xentity\BLM\Dev\BLM_Claude_Repository\Google_Cloud_Data_Loading\June_2026"
+cd "E:\Xentity\BLM\DQIMP\Data\September_2026"
 python prepare_snapshot.py
 ```
 
@@ -644,10 +671,10 @@ table does not stop the script — all other tables will still have loaded.
 > the BigQuery verification in Step 5 passes.
 
 > **Schema folder is auto-detected** (changed 2026-08-10): the repo's
-> `schemas\mlrs_export_schemas\`, then a `schemas\` folder beside the script, then
-> `E:\Xentity\BLM\DQIMP\Data\schemas`. To force a specific folder, add
+> `schemas\mlrs_export_schemas\` found by walking up from the script, then a `schemas\` folder
+> beside the script, then `$BLM_DQIMP_SCHEMA_DIR`. To force a specific folder, add
 > `-SchemaDir "C:\full\path\to\schemas"`. If none of the candidates contains `*_schema.json`
-> files the script lists what it searched and exits.
+> files the script lists what it searched and exits. See "Schema resolution" under File Inventory.
 
 ---
 
@@ -712,14 +739,16 @@ means the PS1 only needs to know `$Date` to construct the correct GCS path.
 
 ### Why keep `$SchemaDir` as a parameter rather than copying the JSON files?
 
-*(Superseded 2026-08-10 — the default is now a search rather than one absolute path, so the
-scripts run unchanged from the repo, a month folder, or the staging folder. The reasoning below
-still explains why the JSONs are not copied next to the scripts.)*
+*(Mechanism superseded 2026-08-10 — the default is now a search, not one absolute path, so the
+scripts run unchanged from the repo or from a month folder. The reasoning below still explains
+why the JSONs are not copied next to the scripts.)*
 
-The 24 schema JSON files live at `E:\Xentity\BLM\DQIMP\Data\schemas\` and are maintained in
-one place. Copying them next to the scripts would create a second copy that could drift out of
-sync. The PS1 defaults to the absolute path of that folder, and the `-SchemaDir` override
-parameter allows the path to be changed at runtime without editing the script.
+The 24 schema JSON files are maintained in **one** place — the repo's
+`schemas/mlrs_export_schemas/`. Copying them next to the scripts would create a second copy that
+could drift out of sync, and a schema that disagrees with the `.load` files fails the BQ load or,
+worse, loads the wrong columns. The `-SchemaDir` / `--schema-dir` override lets the path be
+changed at runtime without editing the script; `$BLM_DQIMP_SCHEMA_DIR` covers month folders that
+sit outside the repo. Both point back at the same repo folder in normal use.
 
 ### Why wildcard BQ loads instead of local consolidation + gsutil compose
 
@@ -808,44 +837,52 @@ inside BQ rather than being enforced at load time.
 
 ## Folder Structure Reference
 
-```
-E:\Xentity\BLM\Dev\BLM_Claude_Repository\
-│
-├── Google_Cloud_Data_Loading\                    ← master copies of scripts live here
-│   ├── prepare_snapshot.py                       ← MASTER: copy into each month folder
-│   ├── BLM_DQIMP_OneStop_param_v4.ps1           ← MASTER: copy into each month folder
-│   ├── BLM_Monthly_Data_Snapshot.md              ← this document
-│   │
-│   ├── June_2026\                                ← one folder per monthly snapshot
-│   │   ├── prepare_snapshot.py                   ← copied from master
-│   │   ├── BLM_DQIMP_OneStop_param_v4.ps1       ← copied from master
-│   │   ├── 2026-06-07_MLRS_Full.zip             ← from BLM (before unzip)
-│   │   ├── 2026-06-07_MLRS_MC.zip               ← from BLM (before unzip)
-│   │   ├── 2026-06-08_NLSDB.gdb.zip             ← from BLM (before unzip)
-│   │   ├── 2026-06-07_MLRS_Full\                ← auto-created by prepare_snapshot.py
-│   │   ├── 2026-06-07_MLRS_MC\                  ← auto-created by prepare_snapshot.py
-│   │   └── nlsdb_06082026.gdb\                  ← auto-created by prepare_snapshot.py
-│   │
-│   ├── May_2026\                                 ← prior month (same structure)
-│   │   └── ...
-│   │
-│   └── (historical reference — do not use for new snapshots)
-│       ├── extract.py
-│       ├── extract_parquet.txt
-│       ├── load_commands.txt
-│       ├── load_commands_Elii.txt
-│       ├── blm_compose_load_20251002.ps1
-│       └── BLM_DQIMP_OneStop_param_v3.ps1
-│
-└── DQIMP\
-    └── MLRS_Database_Quality_Checks.md           ← BQ query notes, Case Type Group taxonomy
+Two separate trees: **scripts live in the repo, data lives outside it.** They never mix.
 
-E:\Xentity\BLM\DQIMP\Data\
-└── schemas\                                      ← 24 JSON schema files for bq load
-    ├── blm_case_schema.json                      ← default $SchemaDir in PS1 points here
-    ├── blm_product_schema.json
-    └── ...
+**1. This repo — the scripts and their schemas (version controlled, public)**
+
 ```
+E:\Xentity\BLM\BLM_DQIMP_GitRepo\
+├── xentity_blm_dqimp_big_query\              ← the clone; open THIS as the VS Code workspace
+│   ├── build\                                ← MASTER copies — copy out, never edit in place
+│   │   ├── README_build.md                   ← this document
+│   │   ├── prepare_snapshot.py
+│   │   ├── BLM_DQIMP_OneStop_param_v4.ps1
+│   │   └── Public_Extract_Specific\          ← NLSDB public-extract fallback
+│   │       ├── README_Public_Extract_build.md
+│   │       ├── extract_feature_service.py
+│   │       ├── merge_public_extract.ipynb
+│   │       ├── prepare_snapshot_public_extract.py
+│   │       └── BLM_DQIMP_OneStop_param_v4_public_extract.ps1
+│   └── schemas\
+│       └── mlrs_export_schemas\              ← 24 JSON schema files for bq load
+│           ├── blm_case_schema.json          ← located automatically at runtime
+│           └── ...
+└── Query_Results\                            ← query output; SIBLING of the clone, never inside
+```
+
+**2. Local disk — the monthly data (NOT version controlled, never inside the repo)**
+
+```
+E:\Xentity\BLM\DQIMP\Data\
+├── September_2026\                           ← one folder per monthly snapshot
+│   ├── prepare_snapshot.py                   ← copied from the repo
+│   ├── BLM_DQIMP_OneStop_param_v4.ps1        ← copied from the repo
+│   ├── 2026-09-06_MLRS_Full.zip              ← from BLM (before unzip)
+│   ├── 2026-09-06_MLRS_MC.zip                ← from BLM (before unzip)
+│   ├── 2026-09-08_NLSDB.gdb.zip              ← from BLM (before unzip)
+│   ├── 2026-09-06_MLRS_Full\                 ← auto-created by prepare_snapshot.py
+│   ├── 2026-09-06_MLRS_MC\                   ← auto-created by prepare_snapshot.py
+│   ├── nlsdb_09082026.gdb\                   ← auto-created by prepare_snapshot.py
+│   ├── Case_20260906.parquet                 ← auto-created, uploaded to GCS
+│   └── Full_Load_Log_09082026.txt            ← run log
+└── August_2026\                              ← prior month (same structure)
+```
+
+⚠️ **Month folders must never be created inside the repo working tree.** They hold multi-GB
+zips, GDBs and Parquet files containing live BLM case data — serial numbers, case names,
+dispositions, legal land descriptions — and this repo is public. `.gitignore` blocks the file
+types as a second layer of defence, but the folder location is the first.
 
 ---
 
