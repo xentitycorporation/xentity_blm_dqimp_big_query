@@ -15,3 +15,14 @@
 /Query_Results/
 query_results/
 *.results.csv
+*.load
+*.parquet
+*.zip
+*.tar
+*.gz
+*.gdb/
+Full_Load_Log_*.txt
+prepare_snapshot_log_*.txt
+BigQuery_Load_log_*.txt
+__pycache__/
+*.pyc
