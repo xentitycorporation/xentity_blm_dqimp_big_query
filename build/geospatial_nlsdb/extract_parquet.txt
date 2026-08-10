@@ -1,8 +1,0 @@
-ogr2ogr -f "Parquet" Case_05052025_0700.parquet nlsdb_05052025.gdb Case_05052025_0700 -lco GEOMETRY=AS_WKB -t_srs EPSG:4326 -progress
-ogr2ogr -f "Parquet" CaseLands_05052025_0720.parquet nlsdb_05052025.gdb CaseLands_05052025_0720 -lco GEOMETRY=AS_WKB -t_srs EPSG:4326 -progress
-
-gsutil cp Case_05052025_0700.parquet gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250501/Case_05052025_0700_geo.parquet
-gsutil cp CaseLands_05052025_0720.parquet gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250501/CaseLands_05052025_0720_geo.parquet
-
-bq load --source_format=PARQUET blm_seta_dqimp.nlsdb_case_geo gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250501/Case_05052025_0700_geo.parquet
-bq load --source_format=PARQUET blm_seta_dqimp.nlsdb_case_land_geo gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20250501/CaseLands_05052025_0720_geo.parquet
