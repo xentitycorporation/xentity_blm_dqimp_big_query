@@ -1,3 +1,5 @@
+-- FIXED 2026-07-24: 'land transfer%%' corrected to 'land_transfer%%' -- the field format is always underscore (Land_Transfer), space never occurs in the data (0 vs 46 rows, verified against blm_product_20260705). Original filter was a no-op. Confirmed and applied.
+
 
 DECLARE snapshot_date STRING DEFAULT '20250901';
 
