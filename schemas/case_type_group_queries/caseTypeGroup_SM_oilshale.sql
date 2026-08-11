@@ -6,7 +6,7 @@ EXECUTE IMMEDIATE FORMAT("""
         CASE_TYPE_CODE
     FROM `blm_seta_dqimp.blm_product_%s`
     WHERE (
-        CASE_TYPE_CODE IN ('355701', '355702', '355703')
+        CASE_TYPE_CODE IN ('355701', '355702', '355703', '392001', '392002', '392003', '393001')
     )
     ORDER BY NAME
 """, snapshot_date);
