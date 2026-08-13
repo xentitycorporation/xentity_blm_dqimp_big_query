@@ -17,5 +17,19 @@ These json files were created from the excel sheet that is distributed by the BL
 ## NLSDB Schemas 
 These json files were created by converting the NLSDB export attributes.
 
+## Lookup Tables
+`lookup_tables/` holds reference tables that Xentity maintains and loads into BigQuery. These are
+**not** BLM extract schemas — they originate here, not from the monthly MLRS or NLSDB deliveries,
+and they reload only when their content changes rather than on the monthly cycle. For that reason
+they are deliberately kept out of `build/`, which is the monthly snapshot pipeline.
+
+**Convention: one subfolder per lookup table**, each self-contained — source data, explicit
+BigQuery schema, reload script, and validator together, so a table can be rebuilt from its own
+folder without hunting.
+
+| Subfolder | Table |
+|---|---|
+| `case_type_group_subgroup/` | `Product_Code_Case_Type_Group_Subgroup` — BLM Product Code → Case Type Group / Subgroup, the client's primary reporting dimension |
+
 ## Schema Validation Notebooks
 These notebooks are the location of 
