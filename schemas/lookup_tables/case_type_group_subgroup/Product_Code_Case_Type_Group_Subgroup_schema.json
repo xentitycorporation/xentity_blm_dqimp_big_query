@@ -1,0 +1,22 @@
+[
+    {
+        "name": "Case Type Group",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "Case Type Subgroup",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "BLM Product",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "BLM Product Code",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    }
+]
