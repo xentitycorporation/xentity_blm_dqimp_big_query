@@ -74,35 +74,43 @@ Those 4 are **correct, not errors.** The taxonomy is deliberately a comprehensiv
 list: if a code appeared in any monthly snapshot, it stays, even after retirement. Dropping a code
 because it is missing from the current snapshot would break historical reporting.
 
-## Known open gap (2026-08-11) — the validator will report FAIL
+## Expected validator result
 
-Running `verify_case_type_group_coverage.py` against `20260802` currently ends in:
+Run from this folder, `verify_case_type_group_coverage.py --snapshot 20260802` should end in:
 
 ```
-[4] taxonomy codes no query claims           : 5
-      of which LIVE in blm_product (FAIL)    : 1
-        380800   Solid Minerals / General Mining Laws
+[1] codes claimed by more than one subgroup : 0
+[2] codes claimed but absent from taxonomy   : 0
+[3] codes in the wrong subgroup              : 0
+[4] taxonomy codes no query claims           : 4
+      of which LIVE in blm_product (FAIL)    : 0
+      of which absent from blm_product (ok)  : 4
+        311131, 312081, 328300, 360050
 [5] blm_product codes with no taxonomy row   : 0
-FAIL: 1 live codes unclassified
+
+PASS: all checks clean against blm_product_20260802
 ```
 
-**This is a true finding, not a false alarm.** `380800` "ABANDONED MINE LAND INV" was assigned to a
-**new subgroup, `Solid Minerals / General Mining Laws`**, which no file in
-`schemas/case_type_group_queries/` claims. The lookup table and the query set have drifted:
+The 4 under `[4]` are the retired historical codes above — expected, not a fault. **Anything under
+`of which LIVE in blm_product (FAIL)` is a real problem**: the taxonomy classifies a code that no
+subgroup query claims, so lookup-driven and query-driven reporting will disagree.
 
-- Reporting driven by **this lookup table** classifies its 2 cases correctly.
-- Reporting driven by **the subgroup queries** misses them.
+### What that check caught on its first run — worth knowing
 
-Two things are needed to close it, and both are SME/manager calls, not mechanical fixes:
+`380800` was assigned to a brand-new subgroup, `Solid Minerals / General Mining Laws`, and the
+validator immediately flagged that nothing claimed it. Closing it took **three** changes, not one —
+and the second would not have been found by reading the files:
 
-1. A `caseTypeGroup_SM_generalmininglaws.sql` (or a decision to fold `380800` into an existing
-   subgroup instead — the siblings are all `Locatables`, while its `CASE_RECORD_TYPES =
-   Solid_Mineral_Materials` points toward `Saleables`).
-2. The subgroup → query-file map inside the validator, which also does not know the new subgroup
-   (hence the `!! subgroups in the taxonomy with no query mapped` warning it prints).
+1. `caseTypeGroup_SM_generalmininglaws.sql` — the new subgroup query.
+2. `caseTypeGroup_SM.sql` — the **group-level** query had `380800` sitting in its `NOT IN`
+   exclusion list, so even with the subgroup file present, group-level Solid Minerals counts would
+   have been short by those 2 cases. Removed and logged in that file's header (KB §5.7.0).
+3. This validator's subgroup → query-file map, which did not know the new subgroup.
 
-Scale: **2 cases**. Low urgency, but leave it visible rather than suppressing the FAIL — this is
-precisely the drift class the validator exists to catch, and it caught it on first run.
+**A grep is not enough to check this.** `grep 380800 *.sql` returned three files and looked like
+double-classification; running them showed `locatables` and `SM.sql` both *excluded* it. Exclusion
+lists and change-log comments quote the very codes they remove. **Run the queries — do not read
+them.** That is what this script is for.
 
 ## Known data quirk
 

@@ -85,6 +85,9 @@ SUBGROUP_QUERIES = {
     ("Solid Minerals", "AML"): "caseTypeGroup_SM_aml.sql",
     ("Solid Minerals", "Coal"): "caseTypeGroup_SM_coal.sql",
     ("Solid Minerals", "Free Use Permit"): "caseTypeGroup_SM_freeusepermit.sql",
+    # New subgroup, SME decision 2026-08-11. Holds only 380800 "ABANDONED MINE LAND INV",
+    # deliberately kept isolated -- see caseTypeGroup_SM_generalmininglaws.sql header.
+    ("Solid Minerals", "General Mining Laws"): "caseTypeGroup_SM_generalmininglaws.sql",
     ("Solid Minerals", "Locatables"): "caseTypeGroup_SM_locatables.sql",
     ("Solid Minerals", "Non-Energy Leaseables"): "caseTypeGroup_SM_nonenergyleaseables.sql",
     ("Solid Minerals", "Oil/Shale"): "caseTypeGroup_SM_oilshale.sql",
