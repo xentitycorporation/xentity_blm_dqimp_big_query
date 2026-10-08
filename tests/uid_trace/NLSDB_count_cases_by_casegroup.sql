@@ -1,5 +1,5 @@
-DECLARE snapshot_date STRING DEFAULT '20250901';
-DECLARE lookup_table STRING DEFAULT 'xentity-sandbox-huy.blm_seta_dqimp.Product_Code_with_Case_Type_Subgroups';
+DECLARE snapshot_date STRING DEFAULT '20260802';
+DECLARE lookup_table STRING DEFAULT 'xentity-sandbox-huy.blm_seta_dqimp.Product_Code_Case_Type_Group_Subgroup';
 
 EXECUTE IMMEDIATE FORMAT("""
     WITH dedup_product AS (
@@ -17,7 +17,10 @@ EXECUTE IMMEDIATE FORMAT("""
     group_lookup AS (
         -- Extracts the distinct mapping of product codes to case groups
         SELECT DISTINCT
-            CAST(`BLM Product Code` AS STRING) AS product_code,
+            -- Both sides of the product-code join are cast to INT64. The lookup column is STRING
+            -- today, but a reload with schema auto-detect turns it INTEGER and strips leading
+            -- zeros ('007500' -> 7500); a text join would then silently drop those codes.
+            SAFE_CAST(`BLM Product Code` AS INT64) AS product_code,
             `Case Type Group`,
             `Case Type Subgroup`
         FROM `%s`
@@ -34,7 +37,7 @@ EXECUTE IMMEDIATE FORMAT("""
     LEFT JOIN dedup_product AS dp 
         ON bc.BLM_PRODUCT = dp.ID
     LEFT JOIN group_lookup AS lk 
-        ON dp.CASE_TYPE_CODE = lk.product_code
+        ON SAFE_CAST(dp.CASE_TYPE_CODE AS INT64) = lk.product_code
     GROUP BY 
         case_type_group, 
         case_type_subgroup
