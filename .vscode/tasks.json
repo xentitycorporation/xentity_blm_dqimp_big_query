@@ -23,19 +23,35 @@
   //   as a quoted CLI argument breaks it (bq parses leading `--` as flags). Piping the
   //   file contents on stdin avoids this. See KB section 4.17.4.
   //
-  // WHY POWERSHELL AND `Get-Content` INSTEAD OF `< file`:
-  //   PowerShell does not support the `<` input-redirection operator. `Get-Content <file> |`
-  //   is the PowerShell equivalent. Verified 2026-08-07 on Windows PowerShell 5.1.
+  // WHY THESE TASKS CALL A .ps1 SCRIPT INSTEAD OF INLINING POWERSHELL IN "command":
+  //   Originally these used `Get-Content file | bq query ...` (verified 2026-08-07 on
+  //   Windows PowerShell 5.1, which has no `<` input-redirection operator).
+  //   CORRECTED 2026-09-04, in two steps:
+  //     1. On a newer Windows build, PowerShell's native-command pipeline injects a UTF-8
+  //        BOM when piping text into a process's stdin -- confirmed the .sql file itself has
+  //        no BOM, and setting both $OutputEncoding and [Console]::OutputEncoding to a no-BOM
+  //        UTF8Encoding had no effect. bq's parser rejects the BOM as `Syntax error: Illegal
+  //        input character "\357" at [1:1]`.
+  //     2. The first fix attempt (`cmd /c "bq ... < file"` inlined into "command" as a shell
+  //        string) broke when actually run through this file's task runner: VS Code hands
+  //        powershell.exe the whole command line as ONE string, which goes through a native
+  //        command-line re-parse pass before PowerShell's own script parser sees it, and that
+  //        pass mangled the backtick-escaped quotes meant to keep `<` inside a string literal
+  //        -- producing "The '<' operator is reserved for future use." A one-off manual test
+  //        of the same text typed at a prompt worked fine, which is exactly why this class of
+  //        bug is worth avoiding rather than re-patching: the two parsing paths genuinely
+  //        differ, so "I tested it and it worked" doesn't transfer between them.
+  //   Fix: moved the logic into run_bq.ps1 (loaded via `-File`, so PowerShell reads it directly
+  //   off disk with no shell string to misinterpret) and switched these tasks from
+  //   `"type": "shell"` (one re-parsed command-line string) to `"type": "process"` with an
+  //   explicit argument array -- each argument reaches the OS process directly, so there is no
+  //   string for any layer to re-parse at all. run_bq.ps1 itself avoids the BOM by writing the
+  //   .sql file's bytes to the child process's stdin through an explicit no-BOM UTF8Encoding
+  //   StreamWriter, rather than using any shell pipe or redirection operator.
   //
   // Auth: uses whatever account `gcloud auth login` established. If a task fails with
   //   "Reauthentication failed", run `gcloud auth login` in the terminal and retry.
   "version": "2.0.0",
-  "options": {
-    "shell": {
-      "executable": "powershell.exe",
-      "args": ["-NoProfile", "-Command"]
-    }
-  },
   "presentation": {
     "reveal": "always",
     "panel": "dedicated",
@@ -51,21 +67,39 @@
       // you nothing about cost. To estimate cost for a parameterized query, paste the inner
       // SELECT with the snapshot date hardcoded and dry-run that instead.
       "detail": "Validates SQL without running or billing it. NOTE: reports 0 bytes for EXECUTE IMMEDIATE scripts - syntax check only, not a cost estimate.",
-      "type": "shell",
-      "command": "Get-Content '${file}' | bq query --use_legacy_sql=false --dry_run",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-File",
+        "${workspaceFolder}/.vscode/run_bq.ps1",
+        "-Mode",
+        "dryrun",
+        "-SqlFile",
+        "${file}"
+      ],
       "problemMatcher": []
     },
     {
       "label": "BigQuery: Run current SQL file",
-      // The `$raw / $m / $clean` dance strips bq's echo of the assembled dynamic SQL.
-      // For DECLARE + EXECUTE IMMEDIATE scripts, bq prints the generated statement to
-      // STDOUT before the results, ending in lines like `-- at Dynamic SQL[2:5]` and
-      // `-- at [3:1]`. We find the LAST line starting with `-- at ` and keep everything
-      // after it. On plain static SQL there is no such marker and the output passes
-      // through untouched. Verified both cases 2026-08-07.
+      // run_bq.ps1's Strip-DynamicSqlEcho does the `$raw / $m / $clean` dance that used to be
+      // inlined here: for DECLARE + EXECUTE IMMEDIATE scripts, bq prints the generated
+      // statement to STDOUT before the results, ending in lines like `-- at Dynamic SQL[2:5]`
+      // and `-- at [3:1]`. It keeps everything after the LAST such line. On plain static SQL
+      // there is no such marker and the output passes through untouched. Verified both cases
+      // 2026-08-07.
       "detail": "Runs the active .sql file and prints a results table in the terminal.",
-      "type": "shell",
-      "command": "$raw = Get-Content '${file}' | bq query --use_legacy_sql=false --format=pretty --max_rows=200; $m = ($raw | Select-String -Pattern '^-- at ' | Select-Object -Last 1).LineNumber; if($m){ $raw | Select-Object -Skip $m } else { $raw }",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-File",
+        "${workspaceFolder}/.vscode/run_bq.ps1",
+        "-Mode",
+        "run",
+        "-SqlFile",
+        "${file}"
+      ],
       "problemMatcher": []
     },
     {
@@ -88,8 +122,19 @@
       // .gitignore also blocks *_results.csv as a second layer, in case someone later
       // points a query output at the repo folder anyway.
       "detail": "Runs the active .sql file and writes results to the sibling Query_Results folder (deliberately OUTSIDE this public repo).",
-      "type": "shell",
-      "command": "$out = Join-Path (Split-Path '${workspaceFolder}' -Parent) 'Query_Results'; if(!(Test-Path $out)){New-Item -ItemType Directory -Force -Path $out | Out-Null}; $dest = Join-Path $out ('${fileBasenameNoExtension}_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.csv'); $raw = Get-Content '${file}' | bq query --use_legacy_sql=false --format=csv --max_rows=100000; $m = ($raw | Select-String -Pattern '^-- at ' | Select-Object -Last 1).LineNumber; $clean = if($m){ $raw | Select-Object -Skip $m } else { $raw }; $clean | Out-File -Encoding utf8 $dest; Write-Host \"Wrote $dest ($($clean.Count - 1) data rows)\"",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-File",
+        "${workspaceFolder}/.vscode/run_bq.ps1",
+        "-Mode",
+        "csv",
+        "-SqlFile",
+        "${file}",
+        "-OutDir",
+        "${workspaceFolder}/../Query_Results"
+      ],
       "problemMatcher": []
     }
   ]

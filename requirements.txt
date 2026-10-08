@@ -1,0 +1,15 @@
+# Environment for BLM DQIMP data-quality testing (BigQuery + notebooks).
+# Installed into .venv — see README setup notes.
+
+pandas
+geopandas
+fiona
+shapely
+plotly
+requests
+aiohttp
+openpyxl
+google-cloud-bigquery
+db-dtypes          # required by pandas-gbq / BigQuery -> DataFrame conversions
+jupyter
+ipykernel
