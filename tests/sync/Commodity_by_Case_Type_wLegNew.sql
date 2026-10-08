@@ -1,8 +1,8 @@
-DECLARE snapshot_date STRING DEFAULT '20260201';
+DECLARE snapshot_date STRING DEFAULT '20260802';
 DECLARE blm_case_table STRING;
 DECLARE nlsdb_case_table STRING;
 DECLARE blm_product_table STRING;
-DECLARE lookup_table STRING DEFAULT 'xentity-sandbox-huy.blm_seta_dqimp.Product_Codes_in_Case_Type_Groups';
+DECLARE lookup_table STRING DEFAULT 'xentity-sandbox-huy.blm_seta_dqimp.Product_Code_Case_Type_Group_Subgroup';
 
 -- 1. Construct dynamic table names
 SET blm_case_table = CONCAT('xentity-sandbox-huy.blm_seta_dqimp.blm_case_', snapshot_date);
@@ -21,7 +21,7 @@ BEGIN
       SELECT 'Land Use Authorizations' UNION ALL
       SELECT 'Land Tenure' UNION ALL
       SELECT 'Land Transfer' UNION ALL
-      SELECT 'Surveys'
+      SELECT 'Survey'
     ),
     
     -- Step 2: Define your 2 Legacy Statuses
@@ -42,14 +42,20 @@ BEGIN
       SELECT 
         b.ID, 
         IF(b.LEGACY_SERIAL_NUMBER IS NOT NULL, 'Legacy', 'Non-Legacy') AS Legacy_Status,
-        lu.`Case Type` AS Case_Type
+        lu.`Case Type Group` AS Case_Type
       FROM `%s` b
       JOIN `%s` n 
         ON b.ID = n.SF_ID
-      LEFT JOIN `%s` p 
+      LEFT JOIN (
+        -- blm_product carries ~5 identical rows per ID (4,926 rows / 962 IDs on 20260802).
+        -- Dedup here so the join cannot fan out; matches the pattern used by the SYT queries.
+        SELECT ID, CASE_TYPE_CODE, NAME
+        FROM `%s`
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY ID ORDER BY CASE_TYPE_CODE) = 1
+      ) p
         ON b.BLM_PRODUCT = p.ID
       LEFT JOIN `%s` lu 
-        ON p.CASE_TYPE_CODE = lu.`Product Code`
+        ON p.CASE_TYPE_CODE = lu.`BLM Product Code`
       -- UPDATED LOGIC: Testing Commodity instead of Case Status
       WHERE LOWER(IFNULL(TRIM(b.COMMODITY), '')) IS DISTINCT FROM LOWER(IFNULL(TRIM(n.CMMDTY), ''))
     )

@@ -26,3 +26,6 @@ prepare_snapshot_log_*.txt
 BigQuery_Load_log_*.txt
 __pycache__/
 *.pyc
+.venv/
+.ipynb_checkpoints/
+.vscode/settings.json

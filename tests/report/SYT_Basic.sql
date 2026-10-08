@@ -1,5 +1,19 @@
+-- ⚠ READ BEFORE USING THESE NUMBERS.
+--
+-- SYT20, SYT23, SYT24 and SYT26 are INVALID on public-extract snapshots (KB S6.5.1).
+-- They compare NLSDB fields the BLM public REST API does not expose (PAT_ISS_DT, PUB_DT,
+-- PUB_TYPE, TITLE_ACC_DT). On those months they do not error - they return a number that
+-- looks like a result. Public-extract snapshots: 20251001, 20251005, 20251101, 20251103,
+-- 20260202 (KB S6.3.9). Discard those four rows on those dates.
+--
+-- SYT19, SYT21 and SYT22 are safe on that axis but are Land Tenure-only fields, so a null
+-- on any non-Land-Tenure case is by design, not a finding (KB S6.3.3).
+--
+-- SYT16's commented-out null guard names SYT15's fields (COST_CENTER_CODE / CSE_JURIS_CD).
+-- Zero effect while commented out; correct to BLM_OFFICE_DESCR / CSE_JURIS_DESC before
+-- enabling it (KB S6.5.2).
 -- Step 1: Declare the snapshot dates
-DECLARE snapshot_dates ARRAY<STRING> DEFAULT ['20250501'];-- '20250201', '20250301', '20250401', 
+DECLARE snapshot_dates ARRAY<STRING> DEFAULT ['20260802'];-- '20250201', '20250301', '20250401', 
 DECLARE i INT64 DEFAULT 0;
 DECLARE num_snapshots INT64;
 DECLARE snapshot STRING;
@@ -24,8 +38,8 @@ WHILE i < num_snapshots DO
     SELECT 'SYT01' AS QueryName, '%s' AS Snapshot, COUNT(*) AS RowCount
     FROM (
       SELECT b.ID
-      FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-      JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+      FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+      JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
       WHERE b.BLM_ADMIN_STATE__C IS DISTINCT FROM n.ADMIN_STATE
     )
@@ -37,10 +51,10 @@ WHILE i < num_snapshots DO
     SELECT 'SYT03' AS QueryName, '%s' AS Snapshot, COUNT(*) AS RowCount
     FROM (
       SELECT c.ID
-      FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS c
-      JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.blm_product_%s` AS p
+      FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS c
+      JOIN `xentity-sandbox-huy.blm_seta_dqimp.blm_product_%s` AS p
         ON c.BLM_PRODUCT = p.ID
-      JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+      JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON c.ID = n.SF_ID
       WHERE LOWER(IFNULL(TRIM(p.NAME), '')) IS DISTINCT FROM LOWER(IFNULL(TRIM(n.BLM_PROD), ''))
     )
@@ -58,9 +72,9 @@ WHILE i < num_snapshots DO
         n.SF_ID,
         n.CSE_DISP
       FROM
-        `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
+        `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
       JOIN
-        `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
       ON
         b.ID = n.SF_ID
       WHERE
@@ -80,10 +94,10 @@ WHILE i < num_snapshots DO
                 p.CASE_TYPE_CODE AS SF_BLM_PRODUCT_CASE_TYPE_CODE,
                 n.SF_ID,
                 n.CSE_TYPE_NR AS NLSDB_CSE_TYPE_NR
-            FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS c
-            JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.blm_product_%s` AS p
+            FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS c
+            JOIN `xentity-sandbox-huy.blm_seta_dqimp.blm_product_%s` AS p
                 ON c.BLM_PRODUCT = p.ID
-            JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+            JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
                 ON c.ID = n.SF_ID
             WHERE SAFE_CAST(p.CASE_TYPE_CODE AS INT64) IS DISTINCT FROM SAFE_CAST(n.CSE_TYPE_NR AS INT64)
     )
@@ -99,8 +113,8 @@ WHILE i < num_snapshots DO
                 b.SERIAL_NUMBER__C,
                 n.SF_ID,
                 n.CSE_NR
-            FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-            JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+            FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+            JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
             ON b.ID = n.SF_ID
             WHERE
                 LOWER(IFNULL(TRIM(b.SERIAL_NUMBER__C), '')) IS DISTINCT FROM
@@ -119,8 +133,8 @@ WHILE i < num_snapshots DO
             b.LEGACY_SERIAL_NUMBER,
             n.SF_ID,
             n.LEG_CSE_NR
-        FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
         WHERE
             LOWER(IFNULL(TRIM(b.LEGACY_SERIAL_NUMBER), '')) IS DISTINCT FROM
@@ -139,8 +153,8 @@ WHILE i < num_snapshots DO
             b.CASE_NAME__C,
             n.SF_ID,
             n.CSE_NAME
-        FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
         WHERE
             LOWER(IFNULL(TRIM(b.CASE_NAME__C), '')) IS DISTINCT FROM
@@ -159,8 +173,8 @@ WHILE i < num_snapshots DO
             b.COMMODITY,
             n.SF_ID,
             n.CMMDTY
-        FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
         WHERE
             LOWER(IFNULL(TRIM(b.COMMODITY), '')) IS DISTINCT FROM
@@ -179,8 +193,8 @@ WHILE i < num_snapshots DO
             b.EFFECTIVE_DATE,
             n.SF_ID,
             n.EFF_DT
-        FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
         WHERE
         -- uncomment below to get only those with a true mismatch
@@ -202,8 +216,8 @@ WHILE i < num_snapshots DO
             b.EXPIRATION_DATE,
             n.SF_ID,
             n.EXP_DT
-        FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
         WHERE
         -- uncomment below to get only those with a true mismatch
@@ -225,8 +239,8 @@ WHILE i < num_snapshots DO
             b.PRODUCTION_STATUS,
             n.SF_ID,
             n.PRDCNG
-        FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
         WHERE
         -- uncomment below to see true mismatches
@@ -248,8 +262,8 @@ WHILE i < num_snapshots DO
             b.DISPOSITION_DATE,
             n.SF_ID,
             n.CSE_DISP_DT
-        FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
         WHERE
         -- uncomment below to get only those with a true non-null mismatches
@@ -271,8 +285,8 @@ WHILE i < num_snapshots DO
             b.COST_CENTER_CODE,
             n.SF_ID,
             n.CSE_JURIS_CD
-        FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
         WHERE
         --uncomment to see true non-null mismatches
@@ -294,8 +308,8 @@ WHILE i < num_snapshots DO
             b.BLM_OFFICE_DESCR,
             n.SF_ID,
             n.CSE_JURIS_DESC
-        FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
         WHERE
         --uncomment to see true non-null mismatches
@@ -318,8 +332,8 @@ WHILE i < num_snapshots DO
             n.SF_ID,
             n.CSE_WIDTH,
             ABS(SAFE_CAST(b.WIDTH AS FLOAT64) - SAFE_CAST(n.CSE_WIDTH AS FLOAT64)) AS WIDTH_DIFF
-        FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
         WHERE SAFE_CAST(b.WIDTH AS FLOAT64) IS DISTINCT FROM SAFE_CAST(n.CSE_WIDTH AS FLOAT64)
     )
@@ -337,8 +351,8 @@ WHILE i < num_snapshots DO
             n.SF_ID,
             n.CSE_LGTH,
             ABS(SAFE_CAST(b.LNGTH AS FLOAT64) - SAFE_CAST(n.CSE_LGTH AS FLOAT64)) AS LNGTH_DIFF
-        FROM `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` AS b
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` AS n
+        FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` AS b
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` AS n
         ON b.ID = n.SF_ID
         WHERE SAFE_CAST(b.LNGTH AS FLOAT64) IS DISTINCT FROM SAFE_CAST(n.CSE_LGTH AS FLOAT64)
     )
@@ -353,7 +367,7 @@ WHILE i < num_snapshots DO
             SELECT
             *,
             PARSE_DATE('%%m/%%d/%%Y', SUBSTR(ACTION_DECISION_DT, 0, 10)) AS parsed_dt
-            FROM `xentity-sandbox-huy.blm_dqimp_qaqc.case_action_%s`
+            FROM `xentity-sandbox-huy.blm_seta_dqimp.case_action_%s`
             WHERE SAFE_CAST(ACTION_CODE AS INT64) = 271
             AND ACTION_DECISION_DT IS NOT NULL
         ),
@@ -371,9 +385,9 @@ WHILE i < num_snapshots DO
             ca.ACTION_REMARKS,
             nc.PAT_NR
         FROM latest_per_case ca
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` bc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` bc
             ON ca.BLM_CASE = bc.ID
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` nc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` nc
             ON bc.ID = nc.SF_ID
         WHERE
             LOWER(IFNULL(SPLIT(ca.ACTION_REMARKS, ';')[OFFSET(0)], '')) IS DISTINCT FROM
@@ -381,7 +395,7 @@ WHILE i < num_snapshots DO
     )
   """, snapshot, snapshot, snapshot, snapshot);
 
-  -- SYT20
+  -- SYT20  [INVALID on public-extract snapshots - KB S6.5.1]
   EXECUTE IMMEDIATE FORMAT("""
     INSERT INTO row_counts
     SELECT 'SYT20' AS QueryName, '%s' AS Snapshot, COUNT(*) AS RowCount
@@ -390,7 +404,7 @@ WHILE i < num_snapshots DO
             SELECT
             *,
             PARSE_DATE('%%m/%%d/%%Y', SUBSTR(ACTION_DECISION_DT, 0, 10)) AS parsed_dt
-            FROM `xentity-sandbox-huy.blm_dqimp_qaqc.case_action_%s`
+            FROM `xentity-sandbox-huy.blm_seta_dqimp.case_action_%s`
             WHERE SAFE_CAST(ACTION_CODE AS INT64) = 271
             AND ACTION_DECISION_DT IS NOT NULL
         ),
@@ -409,9 +423,9 @@ WHILE i < num_snapshots DO
             nc.PAT_NR,
             ca.ACTION_REMARKS,
         FROM latest_per_case ca
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` bc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` bc
             ON ca.BLM_CASE = bc.ID
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` nc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` nc
             ON bc.ID = nc.SF_ID
         WHERE
             PARSE_DATE('%%m/%%d/%%Y', SUBSTR(ca.ACTION_DECISION_DT, 0, 10)) IS DISTINCT FROM
@@ -426,7 +440,7 @@ WHILE i < num_snapshots DO
     FROM (
         WITH ordered_actions AS (
             SELECT *
-            FROM `xentity-sandbox-huy.blm_dqimp_qaqc.case_action_%s`
+            FROM `xentity-sandbox-huy.blm_seta_dqimp.case_action_%s`
         ),
         first_per_case AS (
             SELECT
@@ -440,9 +454,9 @@ WHILE i < num_snapshots DO
             ca.MINERAL_SEGREGATION,
             nc.SEG_MIN
         FROM first_per_case ca
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` bc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` bc
             ON ca.BLM_CASE = bc.ID
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` nc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` nc
             ON bc.ID = nc.SF_ID
         WHERE
             LOWER(IFNULL(ca.MINERAL_SEGREGATION, '')) IS DISTINCT FROM LOWER(IFNULL(nc.SEG_MIN, ''))
@@ -456,7 +470,7 @@ WHILE i < num_snapshots DO
     FROM (
         WITH ordered_actions AS (
             SELECT *
-            FROM `xentity-sandbox-huy.blm_dqimp_qaqc.case_action_%s`
+            FROM `xentity-sandbox-huy.blm_seta_dqimp.case_action_%s`
         ),
         first_per_case AS (
             SELECT
@@ -470,16 +484,16 @@ WHILE i < num_snapshots DO
             ca.SURFACE_SEGREGATION,
             nc.SEG_SUR
         FROM first_per_case ca
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` bc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` bc
             ON ca.BLM_CASE = bc.ID
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` nc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` nc
             ON bc.ID = nc.SF_ID
         WHERE
             LOWER(IFNULL(ca.SURFACE_SEGREGATION, '')) IS DISTINCT FROM LOWER(IFNULL(nc.SEG_SUR, ''))
     )
   """, snapshot, snapshot, snapshot, snapshot);
 
-  -- SYT23
+  -- SYT23  [INVALID on public-extract snapshots - KB S6.5.1]
   EXECUTE IMMEDIATE FORMAT("""
     INSERT INTO row_counts
     SELECT 'SYT23' AS QueryName, '%s' AS Snapshot, COUNT(*) AS RowCount
@@ -488,7 +502,7 @@ WHILE i < num_snapshots DO
             SELECT
             *,
             PARSE_DATE('%%m/%%d/%%Y', SUBSTR(ACTION_DECISION_DT, 0, 10)) AS parsed_dt
-            FROM `xentity-sandbox-huy.blm_dqimp_qaqc.case_action_%s`
+            FROM `xentity-sandbox-huy.blm_seta_dqimp.case_action_%s`
             WHERE SAFE_CAST(ACTION_CODE AS INT64) = 610
             AND ACTION_DECISION_DT IS NOT NULL
         ),
@@ -505,9 +519,9 @@ WHILE i < num_snapshots DO
             ca.ACTION_DECISION_DT,
             nc.PUB_DT,
         FROM latest_per_case ca
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` bc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` bc
             ON ca.BLM_CASE = bc.ID
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` nc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` nc
             ON bc.ID = nc.SF_ID
         WHERE
             PARSE_DATE('%%m/%%d/%%Y', SUBSTR(ca.ACTION_DECISION_DT, 0, 10)) IS DISTINCT FROM
@@ -515,7 +529,7 @@ WHILE i < num_snapshots DO
     )
   """, snapshot, snapshot, snapshot, snapshot);
 
-  -- SYT24
+  -- SYT24  [INVALID on public-extract snapshots - KB S6.5.1]
   EXECUTE IMMEDIATE FORMAT("""
     INSERT INTO row_counts
     SELECT 'SYT24' AS QueryName, '%s' AS Snapshot, COUNT(*) AS RowCount
@@ -524,7 +538,7 @@ WHILE i < num_snapshots DO
             SELECT
             *,
             PARSE_DATE('%%m/%%d/%%Y', SUBSTR(ACTION_DECISION_DT, 0, 10)) AS parsed_dt
-            FROM `xentity-sandbox-huy.blm_dqimp_qaqc.case_action_%s`
+            FROM `xentity-sandbox-huy.blm_seta_dqimp.case_action_%s`
             WHERE SAFE_CAST(ACTION_CODE AS INT64) = 610
             -- AND ACTION_DECISION_DT IS NOT NULL
         ),
@@ -543,9 +557,9 @@ WHILE i < num_snapshots DO
             nc.PUB_DT,
             ca.ACTION_DECISION_DT,
         FROM latest_per_case ca
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` bc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` bc
             ON ca.BLM_CASE = bc.ID
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` nc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` nc
             ON bc.ID = nc.SF_ID
         WHERE
             LOWER(IFNULL(SPLIT(ca.PUBLICATION_TYPE, ';')[OFFSET(0)], '')) IS DISTINCT FROM
@@ -553,7 +567,7 @@ WHILE i < num_snapshots DO
     )
   """, snapshot, snapshot, snapshot, snapshot);
 
-  -- SYT26
+  -- SYT26  [INVALID on public-extract snapshots - KB S6.5.1]
   EXECUTE IMMEDIATE FORMAT("""
     INSERT INTO row_counts
     SELECT 'SYT26' AS QueryName, '%s' AS Snapshot, COUNT(*) AS RowCount
@@ -562,7 +576,7 @@ WHILE i < num_snapshots DO
             SELECT
             *,
             PARSE_DATE('%%m/%%d/%%Y', SUBSTR(ACTION_DECISION_DT, 0, 10)) AS parsed_dt
-            FROM `xentity-sandbox-huy.blm_dqimp_qaqc.case_action_%s`
+            FROM `xentity-sandbox-huy.blm_seta_dqimp.case_action_%s`
             WHERE SAFE_CAST(ACTION_CODE AS INT64) = 865
             -- AND ACTION_DECISION_DT IS NOT NULL
         ),
@@ -579,9 +593,9 @@ WHILE i < num_snapshots DO
             ca.ACTION_DECISION_DT,
             nc.TITLE_ACC_DT,
         FROM latest_per_case ca
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.blm_case_%s` bc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` bc
             ON ca.BLM_CASE = bc.ID
-        JOIN `xentity-sandbox-huy.blm_dqimp_qaqc.nlsdb_case_%s` nc
+        JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` nc
             ON bc.ID = nc.SF_ID
         WHERE
             PARSE_DATE('%%m/%%d/%%Y', SUBSTR(ca.ACTION_DECISION_DT, 0, 10)) IS DISTINCT FROM
@@ -592,12 +606,18 @@ WHILE i < num_snapshots DO
   SET i = i + 1;
 END WHILE;
 
--- Step 5: Pivot to wide format
-SELECT
-  QueryName,
-  MAX(IF(Snapshot = '20250201', RowCount, NULL)) AS `20250201`,
-  MAX(IF(Snapshot = '20250301', RowCount, NULL)) AS `20250301`,
-  MAX(IF(Snapshot = '20250401', RowCount, NULL)) AS `20250401`,
-  MAX(IF(Snapshot = '20250501', RowCount, NULL)) AS `20250501`,
-FROM row_counts
-GROUP BY QueryName;
+-- Step 5: Pivot to wide format.
+-- The column list is built dynamically from snapshot_dates. It used to be a hardcoded
+-- list of dates, which silently returned an all-NULL table whenever snapshot_dates was
+-- changed without editing this block to match.
+EXECUTE IMMEDIATE FORMAT("""
+  SELECT QueryName, %s
+  FROM row_counts
+  GROUP BY QueryName
+  ORDER BY QueryName
+""", (
+  SELECT STRING_AGG(
+           FORMAT("MAX(IF(Snapshot = '%s', RowCount, NULL)) AS `%s`", d, d),
+           ', ' ORDER BY d)
+  FROM UNNEST(snapshot_dates) AS d
+));

@@ -1,9 +1,9 @@
-DECLARE snapshot_date STRING DEFAULT '20260201'; 
+DECLARE snapshot_date STRING DEFAULT '20260802'; 
 DECLARE blm_case_table STRING; 
 DECLARE nlsdb_case_table STRING;
 DECLARE blm_product_table STRING; 
 DECLARE ca_table STRING;
-DECLARE lookup_table STRING DEFAULT 'xentity-sandbox-huy.blm_seta_dqimp.Product_Codes_in_Case_Type_Groups'; 
+DECLARE lookup_table STRING DEFAULT 'xentity-sandbox-huy.blm_seta_dqimp.Product_Code_Case_Type_Group_Subgroup'; 
 
 SET blm_case_table = CONCAT('xentity-sandbox-huy.blm_seta_dqimp.blm_case_', snapshot_date); 
 SET nlsdb_case_table = CONCAT('xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_', snapshot_date); 
@@ -20,7 +20,7 @@ BEGIN
       SELECT 'Land Use Authorizations' UNION ALL 
       SELECT 'Land Tenure' UNION ALL 
       SELECT 'Land Transfer' UNION ALL 
-      SELECT 'Surveys'
+      SELECT 'Survey'
     ),
     LegacyStatuses AS (
       SELECT 'Legacy Serial Number IS NOT NULL' AS Legacy_Status UNION ALL
@@ -37,12 +37,14 @@ BEGIN
           WHEN b.LEGACY_SERIAL_NUMBER IS NOT NULL THEN 'Legacy Serial Number IS NOT NULL'
           ELSE 'Legacy Serial Number IS NULL'
         END AS Legacy_Status,
-        COALESCE(lk.Case_Type_Group, 'Unknown') AS Case_Type
+        COALESCE(lk.`Case Type Group`, 'Unknown') AS Case_Type
       FROM `%s` b
       JOIN `%s` n ON b.ID = n.SF_ID
-      -- UPDATE THE COLUMN NAME ON THE LINE BELOW --
-      LEFT JOIN `%s` p ON b.ID = p.YOUR_PRODUCT_TO_CASE_COLUMN
-      LEFT JOIN `%s` lk ON p.PRODUCT_CODE = lk.Product_Code
+      LEFT JOIN (
+        SELECT ID, CASE_TYPE_CODE FROM `%s`
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY ID ORDER BY CASE_TYPE_CODE) = 1
+      ) p ON b.BLM_PRODUCT = p.ID
+      LEFT JOIN `%s` lk ON p.CASE_TYPE_CODE = lk.`BLM Product Code`
       WHERE LOWER(IFNULL(TRIM(b.CASE_STATUS), '')) IS DISTINCT FROM LOWER(IFNULL(TRIM(n.CSE_DISP), ''))
     )
     SELECT 
@@ -67,12 +69,14 @@ BEGIN
     WITH offenders AS (
       SELECT
         bc.ID AS blm_case_id,
-        COALESCE(lk.Case_Type_Group, 'Unknown') AS Case_Type
+        COALESCE(lk.`Case Type Group`, 'Unknown') AS Case_Type
       FROM `%s` ca
       JOIN `%s` bc ON ca.BLM_CASE = bc.ID
-      -- UPDATE THE COLUMN NAME ON THE LINE BELOW --
-      LEFT JOIN `%s` p ON bc.ID = p.YOUR_PRODUCT_TO_CASE_COLUMN
-      LEFT JOIN `%s` lk ON p.PRODUCT_CODE = lk.Product_Code
+      LEFT JOIN (
+        SELECT ID, CASE_TYPE_CODE FROM `%s`
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY ID ORDER BY CASE_TYPE_CODE) = 1
+      ) p ON bc.BLM_PRODUCT = p.ID
+      LEFT JOIN `%s` lk ON p.CASE_TYPE_CODE = lk.`BLM Product Code`
       WHERE ca.ACTION_DATE IS NULL
       GROUP BY bc.ID, Case_Type
     )

@@ -1,7 +1,7 @@
-DECLARE snapshot_date STRING DEFAULT '20250901';
+DECLARE snapshot_date STRING DEFAULT '20260802';
 DECLARE bc_table STRING;
 DECLARE bp_table STRING;
-DECLARE lookup_table STRING DEFAULT 'xentity-sandbox-huy.blm_seta_dqimp.Product_Codes_in_Case_Type_Groups';
+DECLARE lookup_table STRING DEFAULT 'xentity-sandbox-huy.blm_seta_dqimp.Product_Code_Case_Type_Group_Subgroup';
 
 SET bc_table = CONCAT('blm_seta_dqimp.blm_case_', snapshot_date);
 SET bp_table = CONCAT('blm_seta_dqimp.blm_product_', snapshot_date);
@@ -19,20 +19,20 @@ EXECUTE IMMEDIATE FORMAT("""
     WHERE rn = 1
   ),
   group_lookup AS (
-    SELECT DISTINCT `Product Code`, `Case Type`
+    SELECT DISTINCT `BLM Product Code`, `Case Type Group`
     FROM `%s`
   ),
   case_type_groups AS (
-    SELECT DISTINCT `Case Type` AS case_type FROM group_lookup
+    SELECT DISTINCT `Case Type Group` AS case_type FROM group_lookup
   ),
   mismatches AS (
     SELECT
-      lk.`Case Type` AS case_type,
+      lk.`Case Type Group` AS case_type,
       CASE WHEN b.LEGACY_SERIAL_NUMBER IS NOT NULL THEN 1 ELSE 0 END AS is_legacy
     FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_%s` b
     JOIN `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_%s` n ON b.ID = n.SF_ID
     LEFT JOIN dedup_product dp ON b.BLM_PRODUCT = dp.ID
-    LEFT JOIN group_lookup lk ON dp.CASE_TYPE_CODE = lk.`Product Code`
+    LEFT JOIN group_lookup lk ON dp.CASE_TYPE_CODE = lk.`BLM Product Code`
     WHERE LOWER(IFNULL(TRIM(b.CASE_STATUS), '')) IS DISTINCT FROM LOWER(IFNULL(TRIM(n.CSE_DISP), ''))
   )
   SELECT
@@ -58,16 +58,16 @@ WITH dedup_product AS (
   WHERE rn = 1
 ),
 group_lookup AS (
-  SELECT DISTINCT `Product Code`, `Case Type`
+  SELECT DISTINCT `BLM Product Code`, `Case Type Group`
   FROM `%s`
 )
 SELECT
-  lk.`Case Type` AS case_type,
+  lk.`Case Type Group` AS case_type,
   COUNT(DISTINCT bc.ID) AS blm_case_count
 FROM `%s` bc
 LEFT JOIN dedup_product dp ON bc.BLM_PRODUCT = dp.ID
-LEFT JOIN group_lookup lk ON dp.CASE_TYPE_CODE = lk.`Product Code`
-GROUP BY lk.`Case Type`
+LEFT JOIN group_lookup lk ON dp.CASE_TYPE_CODE = lk.`BLM Product Code`
+GROUP BY lk.`Case Type Group`
 ORDER BY blm_case_count DESC;
 """, bp_table, lookup_table, bc_table);
 
