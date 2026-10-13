@@ -1,17 +1,22 @@
 # dev
 
 # ---------------------------------------------------------------------------
-# Query results — NEVER commit BLM case data to this repository.
-# This repo is PUBLIC (verified 2026-08-07: visibility=public). Query outputs
-# contain live case data: serial numbers, case names, dispositions, legal land
-# descriptions. The VS Code CSV task writes to E:\Xentity\BLM\Query_Results\
-# (outside this tree); these rules are a second layer of protection in case an
-# output is ever pointed at the repo folder.
-# NOTE: existing tracked files (e.g. web-app/*.csv) are unaffected — .gitignore
-# does not untrack files already committed.
+# Query outputs — never commit the results of running the SQL to this repo.
+# The MLRS and NLSDB extracts are PUBLIC data: BLM provides no PII or sensitive
+# data, so the SQL and its comments may name cases, serials and values freely.
+# This repo holds code and documentation only; outputs (CSV/XLSX results,
+# client spreadsheets) go to the sibling folder
+# D:\Xentity\BLM\BLM_DQIMP_GitRepo\Query_Results\ (outside this tree). These
+# rules are a second layer of protection in case an output is ever written to
+# the repo folder.
+# NOTE: existing tracked files (e.g. web-app/*.csv, the lookup-table CSV under
+# schemas/) are unaffected — .gitignore does not untrack committed files.
 # ---------------------------------------------------------------------------
 *_results.csv
 *_results_*.csv
+*__part*.csv
+*.xlsx
+*.xls
 /Query_Results/
 query_results/
 *.results.csv
