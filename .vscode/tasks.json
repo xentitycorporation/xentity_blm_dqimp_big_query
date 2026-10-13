@@ -82,13 +82,13 @@
     },
     {
       "label": "BigQuery: Run current SQL file",
-      // run_bq.ps1's Strip-DynamicSqlEcho does the `$raw / $m / $clean` dance that used to be
-      // inlined here: for DECLARE + EXECUTE IMMEDIATE scripts, bq prints the generated
-      // statement to STDOUT before the results, ending in lines like `-- at Dynamic SQL[2:5]`
-      // and `-- at [3:1]`. It keeps everything after the LAST such line. On plain static SQL
-      // there is no such marker and the output passes through untouched. Verified both cases
-      // 2026-08-07.
-      "detail": "Runs the active .sql file and prints a results table in the terminal.",
+      // run_bq.ps1's Select-ResultTables: for DECLARE + EXECUTE IMMEDIATE scripts, bq prints each
+      // generated statement before its result, followed by lines like `-- at Dynamic SQL[2:5]`
+      // and `-- at [3:1]`. It keeps only the result tables (the `+`/`|` lines) and labels each one
+      // when a script returns several. (2026-10-13: previously it kept only what followed the LAST
+      // marker, so a two-result script showed only its last result.) A failed bq call (e.g. an
+      // expired sign-in) now stops the task with the error instead of printing it as output.
+      "detail": "Runs the active .sql file and prints every result table in the terminal.",
       "type": "process",
       "command": "powershell.exe",
       "args": [
@@ -105,23 +105,26 @@
     {
       "label": "BigQuery: Run current SQL file -> CSV",
       // SAFETY: results are written OUTSIDE the repo, to the sibling Query_Results folder:
-      //     E:\Xentity\BLM\BLM_DQIMP_GitRepo\
+      //     D:\Xentity\BLM\BLM_DQIMP_GitRepo\
       //         Query_Results\              <-- outputs land here (NOT version controlled)
       //         xentity_blm_dqimp_big_query\  <-- this repo
       //
-      // THIS REPOSITORY IS PUBLIC (verified 2026-08-07 via the GitHub API:
-      // visibility=public, private=false). Query results contain live BLM case data --
-      // serial numbers, case names, dispositions, legal land descriptions. Writing them
-      // inside the working tree risks a `git add .` publishing BLM data to the open
-      // internet. Keeping outputs outside the repo makes that mistake impossible rather
-      // than merely unlikely.
+      // THIS REPOSITORY IS PUBLIC. The extracts are public data, but query outputs never go
+      // in the repo: it holds code only. Keeping outputs outside the working tree makes a
+      // `git add .` of results impossible rather than merely unlikely.
+      //
+      // 2026-10-13: one CSV per result table. A script that returns several tables writes
+      // <file>_<timestamp>__part1.csv, __part2.csv ...; a single result writes
+      // <file>_<timestamp>.csv. Runs .vscode/run_bq_csv.py with the repo's .venv, using the
+      // credentials from `gcloud auth application-default login`. Nothing is written if the
+      // query fails.
       //
       // The path is derived as <parent of workspace folder>\Query_Results rather than
       // hardcoded, so moving the whole BLM_DQIMP_GitRepo folder does not break this task.
       //
       // .gitignore also blocks *_results.csv as a second layer, in case someone later
       // points a query output at the repo folder anyway.
-      "detail": "Runs the active .sql file and writes results to the sibling Query_Results folder (deliberately OUTSIDE this public repo).",
+      "detail": "Runs the active .sql file and writes one CSV per result table to the sibling Query_Results folder (outside this public repo).",
       "type": "process",
       "command": "powershell.exe",
       "args": [

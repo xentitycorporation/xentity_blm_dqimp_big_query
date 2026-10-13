@@ -107,7 +107,11 @@ Set the parameters in the `DECLARE` lines at the top, then use any of:
 - **BigQuery console:** paste the file and run. A script with several `SELECT` statements returns one result
   per statement.
 - **VS Code:** open the file and run the task *BigQuery: Run current SQL file*, *... -> CSV*, or *Dry run*
-  (`.vscode/tasks.json`; open this repo folder as the workspace, not its parent).
+  (`.vscode/tasks.json`; open this repo folder as the workspace, not its parent). The terminal task shows every
+  result table, labelled when there are several. The CSV task writes one CSV per result table
+  (`<file>_<timestamp>__part1.csv`, `__part2.csv`, ...) to the sibling `Query_Results` folder; it needs the
+  repo's `.venv` (`requirements.txt`) and `gcloud auth application-default login`. If a query fails, every
+  task stops with the error and writes nothing.
 - **`bq` command line:** pipe the file on stdin, because leading `--` comment lines break `bq` when the SQL is
   passed as an argument:
 
