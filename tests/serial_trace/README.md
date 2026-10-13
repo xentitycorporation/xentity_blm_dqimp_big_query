@@ -2,7 +2,7 @@
 
 **Attributes tracked over time**: the same cases followed across monthly snapshots, to find changes that a
 single snapshot cannot show (for example a case that had a customer and no longer does). Missing or
-incorrect information on one snapshot is an Attribute test in [`../attribute/`](../attribute/attribute.md);
+incorrect information on one snapshot is an Attribute test in [`../attribute/`](../attribute/README.md);
 the two share subject numbers (06 case land, 13 customer, 14 case action, 20 serial number).
 
 Serial Trace tests take a `snapshots` parameter, an ascending array of snapshot dates whose last entry is

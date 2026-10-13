@@ -2,7 +2,7 @@
 
 **Missing or incorrect information in one system, on a single snapshot**: for example cases missing a customer,
 missing case lands, or NLSDB cases with no BLM Product. The same subject followed across snapshots is a
-Serial Trace test in [`../serial_trace/`](../serial_trace/serial_trace.md); the two share subject numbers
+Serial Trace test in [`../serial_trace/`](../serial_trace/README.md); the two share subject numbers
 (06 case land, 13 customer, 14 case action, 20 serial number).
 
 ID rule, standard header and shared conventions S1-S6: see [`../README_newTests.md`](../README_newTests.md).

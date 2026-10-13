@@ -16,11 +16,11 @@ cases, serial numbers and values freely. **Query outputs are never committed** (
 
 | Type | ID prefix | Folder | What it checks | Status |
 |---|---|---|---|---|
-| Synchronization | `SYT` | [`sync/`](sync/sync.md) | A case in MLRS is also in NLSDB, and vice versa, and the same case carries the same value in both systems. | Active |
-| Attribute | `AT` | [`attribute/`](attribute/attribute.md) | Missing or incorrect information in one system, on a single snapshot (e.g. cases missing a customer or case lands, NLSDB cases with no BLM Product). | Active |
-| Serial Trace | `STT` | [`serial_trace/`](serial_trace/serial_trace.md) | Attributes tracked over time: the same cases followed across snapshots (e.g. cases that lost all their customers). | Active |
-| UID Trace | `UTT` | [`uid_trace/`](uid_trace/uid_test.md) | On hold. Its earlier purpose, confirming every unique case in MLRS is present in NLSDB, overlaps the Serial Trace and Sync presence tests. Files are kept as they are. | On hold |
-| System Validation | `SVT` | [`system/`](system/system.md) | Not yet redefined under the current types; no tests in the folder. | Under review |
+| Synchronization | `SYT` | [`sync/`](sync/README.md) | A case in MLRS is also in NLSDB, and vice versa, and the same case carries the same value in both systems. | Active |
+| Attribute | `AT` | [`attribute/`](attribute/README.md) | Missing or incorrect information in one system, on a single snapshot (e.g. cases missing a customer or case lands, NLSDB cases with no BLM Product). | Active |
+| Serial Trace | `STT` | [`serial_trace/`](serial_trace/README.md) | Attributes tracked over time: the same cases followed across snapshots (e.g. cases that lost all their customers). | Active |
+| UID Trace | `UTT` | [`uid_trace/`](uid_trace/README.md) | On hold. Its earlier purpose, confirming every unique case in MLRS is present in NLSDB, overlaps the Serial Trace and Sync presence tests. Files are kept as they are. | On hold |
+| System Validation | `SVT` | [`system/`](system/README.md) | Not yet redefined under the current types; no tests in the folder. | Under review |
 | Geometry | to be assigned | not yet created | Planned: the `CSE_META` table, legal land description (LLD) values, and missing NLSDB geometry. | Planned |
 
 Two other folders hold queries that are not numbered tests:
@@ -132,5 +132,7 @@ spreadsheets are new files named with the snapshot date (`<name>_<YYYYMMDD>.xlsx
 3. Follow S1-S6.
 4. Validate by running it on a snapshot and checking the result against a known answer; record that in
    `Validated`.
-5. Add or update the test's row in Test Catalog v2 (with its repo path) and in the folder README's table.
-6. Commit on a branch and open a pull request.
+5. If it replaces a query already in the repo (an upgraded, corrected or renamed version), delete the old file
+   in the same pull request and name it in the header's `Replaces` line. Git history keeps the old version.
+6. Add or update the test's row in Test Catalog v2 (with its repo path) and in the folder README's table.
+7. Commit on a branch and open a pull request.
