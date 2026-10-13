@@ -3,8 +3,10 @@
 ## Project Context
 
 Xentity (BLM GIS Team contractor) performs monthly Data Quality (DQIMP) testing by comparing
-monthly MLRS snapshots against legacy NLSDB/LR2000 snapshots in BigQuery, hunting for
-migration-induced errors and synchronization issues after the ASRC → Salesforce (MLRS) migration.
+monthly MLRS snapshots against NLSDB snapshots in BigQuery, hunting for migration-induced errors
+and synchronization issues after the ASRC → Salesforce (MLRS) migration, which replaced the legacy
+LR2000 system. NLSDB is not a legacy system: it is MLRS with a geospatial component (the same cases,
+carried with their land geometry), so its case data should agree with MLRS.
 
 This document captures the full workflow for loading each month's snapshot data into Google Cloud
 so BigQuery DQ queries can run against it. It was established in June 2026 and should be updated
@@ -67,7 +69,7 @@ File naming convention: `MC_<STATE>_YYYYMMDD.tar`
 
 ### 3. NLSDB File Geodatabase
 
-A single `.gdb` folder for the month's NLSDB/LR2000 snapshot:
+A single `.gdb` folder for the month's NLSDB snapshot:
 
 ```
 nlsdb_12092025.gdb    ← naming: nlsdb_MMDDYYYY.gdb (month-day-year, not ISO)
