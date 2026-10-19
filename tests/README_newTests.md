@@ -16,18 +16,24 @@ cases, serial numbers and values freely. **Query outputs are never committed** (
 
 | Type | ID prefix | Folder | What it checks | Status |
 |---|---|---|---|---|
-| Synchronization | `SYT` | [`sync/`](sync/README.md) | A case in MLRS is also in NLSDB, and vice versa, and the same case carries the same value in both systems. | Active |
-| Attribute | `AT` | [`attribute/`](attribute/README.md) | Missing or incorrect information in one system, on a single snapshot (e.g. cases missing a customer or case lands, NLSDB cases with no BLM Product). | Active |
+| Core Elements | `CE` | [`core_elements/`](core_elements/README.md) | The most basic database checks, generic to any table or field: are all cases present in each system, do the counts match, are the fields that should be filled actually filled, are values within their allowed list, are keys unique. Usually produces counts. | Active |
+| Attribute | `AT` | [`attribute/`](attribute/README.md) | Missing or incorrect information in one system, on a single snapshot, judged against a business rule (e.g. cases missing a customer or case lands, NLSDB cases with no BLM Product). Produces the list of cases to fix. | Active |
+| Synchronization | `SYT`, `SYTCL` | [`sync/`](sync/README.md) | A case in MLRS is also in NLSDB, and vice versa, and the same case carries the same value in both systems. `SYTCL` tests compare at case-land level. | Active |
 | Serial Trace | `STT` | [`serial_trace/`](serial_trace/README.md) | Attributes tracked over time: the same cases followed across snapshots (e.g. cases that lost all their customers). | Active |
-| UID Trace | `UTT` | [`uid_trace/`](uid_trace/README.md) | On hold. Its earlier purpose, confirming every unique case in MLRS is present in NLSDB, overlaps the Serial Trace and Sync presence tests. Files are kept as they are. | On hold |
-| System Validation | `SVT` | [`system/`](system/README.md) | Not yet redefined under the current types; no tests in the folder. | Under review |
-| Geometry | to be assigned | not yet created | Planned: the `CSE_META` table, legal land description (LLD) values, and missing NLSDB geometry. | Planned |
+| System Validation | `SVT` | [`system/`](system/README.md) | Whether the system itself works: problems that appear in New cases but never in Legacy ones, and system functions such as the admin-unit overlay. | Active; no tests in the folder yet |
+| UID Trace | `UTT` | [`uid_trace/`](uid_trace/README.md) | Whether a case lines up across all the IDs that link MLRS tables to NLSDB. Not yet explored. | On hold |
+| Report | `SYTR` | [`report/`](report/README.md) | Report generators: the data behind the monthly data-quality reports, assembled from the individual tests. | Active |
+| Reference | `REF` | [`reference/`](reference/README.md) | Support queries other tests rely on (lists of product codes, names and record types). Not pass/fail tests. | No files yet |
+| Geometry | `GEO` | not yet created | Planned: the `CSE_META` table, legal land description (LLD) values, and missing NLSDB geometry. | Planned |
+| Web app | `WEB` | `web-app/tests/` (not yet in the repo) | Builds the tables behind the DQIMP Web Experience dashboards. | Planned |
 
-Two other folders hold queries that are not numbered tests:
+**Core Elements or Attribute?** Core Elements are generic, whole-population checks (counts, completeness, valid
+values, unique keys) and answer "is the database structurally sound?". Attribute tests check a business rule
+and list the cases that break it.
 
-- [`core_elements/`](core_elements/): simple counts and lists (cases, serial numbers, cases by status) used as
-  building blocks and quick checks.
-- [`report/`](report/): `SYT_Basic.sql` and `SYT_Basic_CL.sql`, the sync test row counts behind the monthly report.
+**Test or investigation?** Ask: *would we run it again next month?* If yes, it is a test and goes in
+`tests/<type>/`. If not (a one-off question answered once), it goes in a top-level `investigations/` folder,
+dated, outside `tests/` (created when the first one is added).
 
 ---
 
@@ -35,6 +41,8 @@ Two other folders hold queries that are not numbered tests:
 
 **The prefix is the test type and the repo folder; the number is the subject; `.N` is a sub-test of that
 subject.** For example, `SYT04` compares case disposition between the systems and `SYT04.1` is its client list.
+A prefix may extend its type's code: `SYTCL` is Synchronization at case-land level, `SYTR` is a report built
+from Synchronization tests.
 
 **Attribute and Serial Trace tests share subject numbers**, so the single-snapshot test and the over-time
 test on the same subject line up:
