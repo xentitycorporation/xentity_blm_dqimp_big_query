@@ -71,7 +71,7 @@ Every test added to the repo starts with this header:
 -- Replaces:     none (new test)
 -- Produces:     MLRS_Cases_Missing_CaseAction_<snapshot_date>.xlsx, sheet "Cases Missing Action"
 -- Parameters:   snapshot_date (YYYYMMDD), lookup_table, dispositions
--- Conventions:  shared conventions S1-S6 in tests/README_newTests.md
+-- Conventions:  shared conventions S1-S7 in tests/README_newTests.md
 -- Validated:    <snapshot(s) run, the date, and what the result was checked against>
 -- Added:        YYYY-MM-DD
 -- =====================================================================================
@@ -82,7 +82,7 @@ not follow the conventions below.
 
 ---
 
-## Shared conventions (S1-S6)
+## Shared conventions (S1-S7)
 
 Every test with the standard header follows these.
 
@@ -94,6 +94,7 @@ Every test with the standard header follows these.
 | S4 | **The Case Type Group/Subgroup taxonomy is joined on `SAFE_CAST(... AS INT64)` on both sides**, from `lookup_table`. Unclassified rows read `(Unclassified)` as the group. The subgroup reads `BLM Product Code <code> (not in taxonomy)` when the case has a code with no taxonomy row, otherwise `(no case type code / not in blm_product)`. |
 | S5 | **Missing values are returned as NULL** (a blank cell), never a placeholder such as `(no serial)`. |
 | S6 | **Parameters are declared at the top:** `snapshot_date` (YYYYMMDD), or `snapshots` (an ascending array) for over-time tests, plus `lookup_table`. Test-specific parameters (e.g. `flagged_dispositions`) sit alongside them. Table names are fully qualified. |
+| S7 | **Every case list carries `Origin` and `Mining_Claim`.** Any output with one row per MLRS case adds two columns: `Origin` is `Legacy` when the case has a legacy serial number (`NULLIF(TRIM(LEGACY_SERIAL_NUMBER), '') IS NOT NULL`, i.e. it predates Salesforce and came from LR2000), otherwise `New`; `Mining_Claim` is `Yes` when `RECORDTYPEID = '012t00000008bvNAAQ'` (Mining Claim record type), otherwise `No`. Count outputs may be split by the same two values. Together they give the four-way Legacy/New x Mining Claim/Other view; System Validation tests use it to compare problems in New cases against Legacy ones. Adopted 2026-10-19: tests added before then do not carry these columns yet. |
 
 The taxonomy lookup table is `xentity-sandbox-huy.blm_seta_dqimp.Product_Code_Case_Type_Group_Subgroup`;
 its source CSV is in [`schemas/`](../schemas/).
@@ -133,7 +134,7 @@ spreadsheets are new files named with the snapshot date (`<name>_<YYYYMMDD>.xlsx
 
 1. Pick the type, which sets the folder and ID prefix. Take the next free ID from Test Catalog v2.
 2. Name the file `<ID with underscore>_<description>.sql` and add the standard header.
-3. Follow S1-S6.
+3. Follow S1-S7.
 4. Validate by running it on a snapshot and checking the result against a known answer; record that in
    `Validated`.
 5. If it replaces a query already in the repo (an upgraded, corrected or renamed version), delete the old file
