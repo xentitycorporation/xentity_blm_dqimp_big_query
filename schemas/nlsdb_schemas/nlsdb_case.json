@@ -1,16 +1,206 @@
-##this needs to be created
 [
     {
+        "name": "OBJECTID",
+        "type": "INT64"
+    },
     {
-        "name": "name3",
+        "name": "ADMIN_STATE",
         "type": "STRING"
     },
     {
-        "name": "name1",
+        "name": "GEO_STATE",
         "type": "STRING"
     },
     {
-        "name": "name",
-        "type": "string"
+        "name": "BLM_PROD",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_DISP",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_TYPE_NR",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_NR",
+        "type": "STRING"
+    },
+    {
+        "name": "LEG_CSE_NR",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_NAME",
+        "type": "STRING"
+    },
+    {
+        "name": "CMMDTY",
+        "type": "STRING"
+    },
+    {
+        "name": "FRMTN",
+        "type": "STRING"
+    },
+    {
+        "name": "EFF_DT",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "EXP_DT",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "PRDCNG",
+        "type": "STRING"
+    },
+    {
+        "name": "SALE_DT",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "CUST_NM_SEC",
+        "type": "STRING"
+    },
+    {
+        "name": "PCT_INT_SEC",
+        "type": "FLOAT64"
+    },
+    {
+        "name": "INT_REL_SEC",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_DISP_DT",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "CSE_JURIS_CD",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_JURIS_DESC",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_WIDTH",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_LGTH",
+        "type": "STRING"
+    },
+    {
+        "name": "PAT_NR",
+        "type": "STRING"
+    },
+    {
+        "name": "PAT_ISS_DT",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "SEG_MIN",
+        "type": "STRING"
+    },
+    {
+        "name": "SEG_SUR",
+        "type": "STRING"
+    },
+    {
+        "name": "PUB_DT",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "PUB_TYPE",
+        "type": "STRING"
+    },
+    {
+        "name": "SUPP_USE",
+        "type": "STRING"
+    },
+    {
+        "name": "TITLE_ACC_DT",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "FUND_BY",
+        "type": "STRING"
+    },
+    {
+        "name": "SRC",
+        "type": "STRING"
+    },
+    {
+        "name": "QLTY",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_META",
+        "type": "STRING"
+    },
+    {
+        "name": "PLSSIDS",
+        "type": "STRING"
+    },
+    {
+        "name": "RCRD_ACRS",
+        "type": "FLOAT64"
+    },
+    {
+        "name": "PLSS_UPDATE_DT",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "ID",
+        "type": "STRING"
+    },
+    {
+        "name": "SF_ID",
+        "type": "STRING"
+    },
+    {
+        "name": "STAGE_ID",
+        "type": "STRING"
+    },
+    {
+        "name": "Created",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "Modified",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "REC_TYPE_CSE_GRP",
+        "type": "STRING"
+    },
+    {
+        "name": "MC_PATENTED",
+        "type": "STRING"
+    },
+    {
+        "name": "MC_EXCLUDED",
+        "type": "STRING"
+    },
+    {
+        "name": "MC_CONVEYED",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_DISP_ACTION",
+        "type": "STRING"
+    },
+    {
+        "name": "Shape_Length",
+        "type": "FLOAT64"
+    },
+    {
+        "name": "Shape_Area",
+        "type": "FLOAT64"
+    },
+    {
+        "name": "Shape",
+        "type": "BYTES"
     }
 ]

@@ -1,16 +1,142 @@
-##this needs to be created
 [
     {
+        "name": "OBJECTID",
+        "type": "INT64"
+    },
     {
-        "name": "name3",
+        "name": "CSE_NR",
         "type": "STRING"
     },
     {
-        "name": "name1",
+        "name": "LEG_CSE_NR",
         "type": "STRING"
     },
     {
-        "name": "name",
-        "type": "string"
+        "name": "REC_TYPE_CSE_GRP",
+        "type": "STRING"
+    },
+    {
+        "name": "BLM_PROD",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_TYPE_NR",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_LND_STATUS",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_LND_STATUS_DT",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "CSE_LND_NR",
+        "type": "STRING"
+    },
+    {
+        "name": "US_RIGHTS",
+        "type": "STRING"
+    },
+    {
+        "name": "DOC_TYPE",
+        "type": "STRING"
+    },
+    {
+        "name": "DOC_NR",
+        "type": "STRING"
+    },
+    {
+        "name": "DOC_DT",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "SEG_MIN",
+        "type": "STRING"
+    },
+    {
+        "name": "SEG_SUR",
+        "type": "STRING"
+    },
+    {
+        "name": "LND_SELECTED_BY",
+        "type": "STRING"
+    },
+    {
+        "name": "PRIORITY",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_LND_ACRS",
+        "type": "FLOAT64"
+    },
+    {
+        "name": "CSE_LND_ID",
+        "type": "STRING"
+    },
+    {
+        "name": "SRC",
+        "type": "STRING"
+    },
+    {
+        "name": "QLTY",
+        "type": "STRING"
+    },
+    {
+        "name": "CSE_LND_META",
+        "type": "STRING"
+    },
+    {
+        "name": "PLSSIDS",
+        "type": "STRING"
+    },
+    {
+        "name": "PLSS_UPDATE_DT",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "SF_ID",
+        "type": "STRING"
+    },
+    {
+        "name": "SF_CL_ID",
+        "type": "STRING"
+    },
+    {
+        "name": "ID",
+        "type": "STRING"
+    },
+    {
+        "name": "AGG_CLS_ID",
+        "type": "STRING"
+    },
+    {
+        "name": "Created",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "Modified",
+        "type": "TIMESTAMP"
+    },
+    {
+        "name": "CreatedBy",
+        "type": "STRING"
+    },
+    {
+        "name": "ModifiedBy",
+        "type": "STRING"
+    },
+    {
+        "name": "Shape_Length",
+        "type": "FLOAT64"
+    },
+    {
+        "name": "Shape_Area",
+        "type": "FLOAT64"
+    },
+    {
+        "name": "Shape",
+        "type": "BYTES"
     }
 ]

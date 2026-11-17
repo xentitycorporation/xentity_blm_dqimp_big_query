@@ -220,6 +220,15 @@ automatically at runtime — see "Schema resolution" below.
 > dropping the time component. This allows the OneStop PS1 to construct the GCS path from
 > `$Date` alone without needing the per-month timestamp.
 
+> **NLSDB layout files (new as of November 2026):** the expected columns and BigQuery types of
+> the two NLSDB tables live in `schemas/nlsdb_schemas/nlsdb_case.json` and
+> `nlsdb_case_land.json`, in the same `{"name", "type"}` format as the MLRS schemas.
+> `prepare_snapshot.py` checks the Parquet files against them, and the PS1 builds its external
+> tables from them — there is no second copy of the column list anywhere. They hold the layout
+> BLM has delivered since the Azure migration (October 2026): Case without `GIS_ACRS`, CaseLands
+> without `QLTY_CK` and with `CreatedBy` / `ModifiedBy`. `Shape` is listed as `BYTES` on purpose
+> (see "NLSDB Parquet load approach").
+
 ### NLSDB Public Extract (alternate data source)
 
 When BLM does not deliver a standard NLSDB GDB snapshot for a given month, an extract from
@@ -549,7 +558,12 @@ python prepare_snapshot.py
 ```
 
 The script auto-detects the three zip files, unzips them (with correct renaming), and
-handles all tar extraction and GCS upload automatically.
+handles the GDB conversion, tar extraction, layout checks and GCS upload automatically.
+**Nothing is uploaded until every layout check has passed** (see "When the script stops"
+below).
+
+To run everything except the upload — for example to check a new delivery before committing to
+a load — add `--check-only`.
 
 When it finishes successfully you will see:
 
@@ -564,15 +578,64 @@ Next step — run the BigQuery load:
 ```
 
 **What it does in order:**
-1. Finds `*_MLRS_Full.zip` → unzips → renames extracted folder to `2026-06-07_MLRS_Full`
-2. Finds `*_MLRS_MC.zip` → unzips → renames extracted folder to `2026-06-07_MLRS_MC`
-3. Finds `*_NLSDB.gdb.zip` → unzips (GDB folder inside is already named `nlsdb_MMDDYYYY.gdb`)
-4. Derives snapshot date `20260607` from the MLRS zip filename
-5. Extracts all `.tar` → `.gz` → `.load` for both MLRS folders
-6. **Validates** every `.load` file's column count against the BQ schema files — any rows with wrong column counts (usually caused by an embedded pipe `|` in a text field) are reported with file name and line number. See "Fixing embedded pipe errors" below.
-7. Uploads all non-empty per-state `.load` files to `gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20260607/<TABLE>/` — one parallel `gsutil -m cp` call per table with `-o "GSUtil:check_hashes=always"` to verify upload integrity, grouping all 12 state files into a per-table GCS subdirectory (empty files — states with no records — are skipped automatically)
-8. Auto-detects GDB layer names via `fiona.listlayers()`, converts to `Case_20260607.parquet` and `CaseLands_20260607.parquet`
-9. Uploads both Parquet files to GCS
+1. **[0/5]** Loads the expected layouts — the 24 MLRS schema JSONs and the two NLSDB layout
+   JSONs — so a missing or broken file fails in seconds
+2. Finds `*_MLRS_Full.zip` → unzips → renames extracted folder to `2026-06-07_MLRS_Full`
+3. Finds `*_MLRS_MC.zip` → unzips → renames extracted folder to `2026-06-07_MLRS_MC`
+4. Finds `*_NLSDB.gdb.zip` → unzips (GDB folder inside is already named `nlsdb_MMDDYYYY.gdb`)
+5. Derives snapshot date `20260607` from the MLRS zip filename
+6. **[1/5]** Auto-detects GDB layer names via `fiona.listlayers()`, converts to `Case_20260607.parquet`
+   and `CaseLands_20260607.parquet`, then **checks both Parquet files' columns and types**
+   against `schemas/nlsdb_schemas/`. This runs first so an NLSDB layout change stops the run
+   in minutes rather than after the 2-hour tar step. A complete Parquet file from an earlier
+   run is reused (delete it to force reconversion)
+7. **[2/5, 3/5]** Extracts all `.tar` → `.gz` → `.load` for both MLRS folders
+8. **[4/5]** **Checks the MLRS layout**: all 12 states present (no extras), all 24 tables present in
+   every state (no extras), and every `.load` file's column count matching its schema JSON. A
+   file where most rows have a different count means a column was added or removed, and stops
+   the run. A few stray rows are almost always an embedded pipe `|` in a text field; those are
+   reported with file name and line number and do **not** stop the run — see "Fixing embedded
+   pipe errors" below
+9. **[5/5]** Uploads all non-empty per-state `.load` files to `gs://sandbox-blm-seta-dqimp-qaqc/snapshots/20260607/<TABLE>/` — one parallel `gsutil -m cp` call per table with `-o "GSUtil:check_hashes=always"` to verify upload integrity, grouping all 12 state files into a per-table GCS subdirectory (empty files — states with no records — are skipped automatically) — then uploads both Parquet files
+
+#### When the script stops: a layout change
+
+If BLM changes the layout of a delivery, `prepare_snapshot.py` stops **before uploading anything**
+(exit code 2), lists every difference, and says which file to update. Example — what the
+October 2026 NLSDB files report against the current layout:
+
+```
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+STOPPED — the delivery does not match the expected layout.
+Nothing has been uploaded to GCS.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  - NLSDB Case: NEW column GIS_ACRS (FLOAT64)
+  - NLSDB Case: the layout found was saved to Case_20261004_layout_found.json
+  - NLSDB CaseLands: NEW column QLTY_CK (STRING)
+  - NLSDB CaseLands: column CreatedBy (STRING) is MISSING
+  - NLSDB CaseLands: column ModifiedBy (STRING) is MISSING
+```
+
+What it catches:
+
+| Delivery | Stops on |
+|---|---|
+| NLSDB Case / CaseLands | a new column, a missing column, or a changed type (compared by name; column order does not matter, as BigQuery matches Parquet columns by name) |
+| MLRS Full and MC | a missing or extra state, a missing or extra table, or a file whose column count changed |
+
+**What it cannot catch:** the MLRS `.load` files have no header row, so a renamed or reordered
+MLRS column with the same column count is invisible to it. MLRS types are not checked either:
+all 24 schema JSONs are `STRING`.
+
+**What to do when it stops:**
+1. Read the differences. If the change is not expected, raise it with BLM before loading the month.
+2. If it is expected, update the layout: for NLSDB, edit `schemas/nlsdb_schemas/<file>.json`
+   (the `*_layout_found.json` saved next to the Parquet is the new layout in the same format,
+   ready to copy); for MLRS, edit `schemas/mlrs_export_schemas/<table>_schema.json`, and for a
+   new table also add it to the PS1's `$loads` list. Commit the change to the repo.
+3. Check the DQ tests that use any column that was renamed or removed.
+4. Re-run `prepare_snapshot.py`. Finished steps (unzip, tar extraction, Parquet conversion) are
+   skipped, so the re-run takes minutes.
 
 **If the zip files have non-standard names** or you are re-running with already-unzipped data,
 you can pass paths explicitly:
@@ -661,10 +724,28 @@ Press Enter to close
 Scan the output for any `WARNING` or `ERROR` lines before pressing Enter. A warning on a single
 table does not stop the script — all other tables will still have loaded.
 
+**Pre-flight layout checks (November 2026).** Before it loads anything, the PS1 checks the
+snapshot itself, and stops with the same kind of report as `prepare_snapshot.py` if:
+- the GCS folder does not hold exactly the 24 expected table folders and both Parquet files; or
+- BigQuery's own reading of either Parquet file — a temporary schema-detected external table,
+  `<table>_layoutprobe`, created and dropped in seconds with no data scanned — has different
+  columns or types from `schemas/nlsdb_schemas/`.
+
+This catches a layout change even if the Parquet files did not come through this month's
+`prepare_snapshot.py`. To run only these checks and load nothing:
+
+```powershell
+.\BLM_DQIMP_OneStop_param_v4.ps1 -Date 20260607 -CheckOnly
+```
+
+The NLSDB layout folder is found beside the MLRS schema folder (`schemas\nlsdb_schemas\`);
+`-NlsdbSchemaDir` overrides it.
+
 **What it does internally:**
+0. Pre-flight layout checks (above) — stop before any load if they fail
 1. `bq load --replace` — for each of the 24 tables, truncates+loads `gs://.../<TABLE>/CR_FULL_<TABLE>_*.load` (all 12 state files via GCS wildcard) into `blm_seta_dqimp.<table>_<DATE>`; `--replace` ensures re-runs start clean with no duplicate rows; `--quote=""` disables CSV quote recognition (BLM `.load` files use no quoting — literal `"` in field values must not trigger CSV quoting logic); `--max_bad_records=0` fails on any bad row instead of silently dropping data
 2. `bq load` (default WRITE_APPEND) — appends `gs://.../<TABLE>/MC_<TABLE>_*.load` into the same table (mining claims merged with the full extract at BigQuery scale; same `--quote=""` and `--max_bad_records=0` flags)
-3. External table + CTAS (3 BQ jobs) — creates a temp external table over `Case_<DATE>.parquet` with `Shape BYTES` (bypasses BQ's GeoParquet geography validator), then `CREATE TABLE AS SELECT ... ST_GEOGFROMWKB(Shape, make_valid => TRUE)` to repair spherically-invalid polygons and write `blm_seta_dqimp.nlsdb_case_<DATE>`, then drops the temp external table
+3. External table + CTAS (3 BQ jobs) — creates a temp external table over `Case_<DATE>.parquet`, with its columns taken from `schemas/nlsdb_schemas/nlsdb_case.json` and `Shape BYTES` (bypasses BQ's GeoParquet geography validator), then `CREATE TABLE AS SELECT ... ST_GEOGFROMWKB(Shape, make_valid => TRUE)` to repair spherically-invalid polygons and write `blm_seta_dqimp.nlsdb_case_<DATE>`, then drops the temp external table
 4. Same 3-job pattern for `CaseLands_<DATE>.parquet` → `blm_seta_dqimp.nlsdb_case_land_<DATE>`
 
 > **GCS cleanup is intentionally NOT part of this script.** The `gsutil -m rm` step is
@@ -832,7 +913,8 @@ inside BQ rather than being enforced at load time.
 | NLSDB public extract — Oct/Nov 2025 shutdown-freeze | `nlsdb_case_20251101/20251103` are byte-identical to their Oct counterparts. This is NOT a file copy — the BLM public API was frozen during the federal shutdown. MLRS blm_case growth Oct→Nov was ~100 cases/day vs ~330/day surrounding, docx explicitly notes the shutdown, and API refreshes normally now (June 2026 probe). Treat 20251005 and 20251103 as representing the same underlying NLSDB state. |
 | NLSDB public extract — schema differences by tooling path | The differences observed between Feb 2026 and Oct/Nov 2025 are due to different tooling paths, not API inconsistency. Oct/Nov used ogr2ogr end-to-end (`OBJECTID` + `fid`, correct Case_Land schema). Feb 2026 used ArcPro Export Features (`OBJECTID_1`, `nlsdb_Shape`, `Shape_Length`, `Shape_Area`, TIMESTAMP dates) because the user's ogr2ogr install was broken. Standardize on the `dev` conda env's ogr2ogr; see DQIMP §6.3.10 §C and §E. When BQ loads fail with type mismatch (e.g., `Shape has type DOUBLE`), inspect the Parquet with `pyarrow.parquet.read_schema()` and generate the external table DDL manually. |
 | Silent upload corruption (gsutil) | `gsutil cp` can silently corrupt large files (~400 MiB+) during upload — the GCS copy differs from the local file but gsutil reports success. This causes BQ load failures with "Too many values in line" errors that the column-count validation cannot catch (the local file is clean). **Fix:** `prepare_snapshot.py` now uses `-o "GSUtil:check_hashes=always"` on all uploads, which forces post-upload hash verification and fails loudly on mismatch. If a hash mismatch occurs, re-upload the affected file. Discovered on September 2025 BLM_CASE MT (429 MiB). Long-term fix: migrate from `gsutil` to `gcloud storage cp`. |
-| Re-running extract | `prepare_snapshot.py` skips tar extraction if the output subdirectory already exists. Empty `.load` files (states with no records) are silently filtered before upload — safe to re-run. |
+| BLM changes the export layout | **Caught automatically since November 2026** — `prepare_snapshot.py` and the PS1 both stop before uploading or loading anything (see "When the script stops: a layout change" in Step 3). Before this, a layout change produced **no error at all**: the Azure migration (October 2026) dropped `GIS_ACRS` from NLSDB Case, dropped `QLTY_CK` from CaseLands and added `CreatedBy`/`ModifiedBy`, and the November 2026 load ran with the old hardcoded column lists. BigQuery matches Parquet columns by name, returning NULL for a declared column the file lacks and ignoring a file column that is not declared, so `nlsdb_case_land_20261101` silently lost the two new columns and both tables gained an empty column. Rebuilt from the GCS Parquet files on 2026-11-17. |
+| Re-running extract | `prepare_snapshot.py` skips the unzip, tar extraction and Parquet conversion if their output already exists (a Parquet file is reused only if it is complete — readable, with rows). Empty `.load` files (states with no records) are silently filtered before upload — safe to re-run. |
 | State code `ES` | Eastern States. Included in both Full and MC folders alongside the 11 western state codes (AK, AZ, CA, CO, ID, MT, NM, NV, OR, UT, WY). |
 
 ---

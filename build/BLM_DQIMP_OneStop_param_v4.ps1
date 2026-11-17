@@ -38,11 +38,24 @@
 #     typed as BYTES (bypasses geography validation), then CTAS with
 #     ST_GEOGFROMWKB(Shape, make_valid => TRUE) to convert and repair in BigQuery.
 #   - BqLoadParquet replaced by BqLoadNlsdbParquet with the three-step pattern.
-#   - Hardcoded NLSDB column schemas added as $NlsdbCaseColumns / $NlsdbCaseLandColumns.
+#
+# Layout checks (November 2026):
+#   - The NLSDB column lists are no longer hardcoded here. They are read from
+#     schemas/nlsdb_schemas/nlsdb_case.json and nlsdb_case_land.json — the same files
+#     prepare_snapshot.py checks the Parquet files against. (The Azure migration changed
+#     the NLSDB layout in October 2026; November was loaded with stale hardcoded lists and
+#     BigQuery raised no error, because an external table matches Parquet columns by name.)
+#   - Pre-flight checks run before ANY load, and stop the script if they fail:
+#       1. the GCS snapshot folder holds exactly the 24 expected table folders and both
+#          Parquet files;
+#       2. BigQuery's own reading of each Parquet file (a temporary schema-detected
+#          external table) has the columns and types in the layout JSON.
+#   - -CheckOnly runs the pre-flight checks and loads nothing.
 #
 # Usage:
 #   .\BLM_DQIMP_OneStop_param_v4.ps1 -Date 20260607
-#   .\BLM_DQIMP_OneStop_param_v4.ps1 -Date 20260607 -SchemaDir "C:\path\to\schemas"
+#   .\BLM_DQIMP_OneStop_param_v4.ps1 -Date 20260607 -CheckOnly
+#   .\BLM_DQIMP_OneStop_param_v4.ps1 -Date 20260607 -SchemaDir "C:\path\to\schemas\mlrs_export_schemas"
 
 param(
     [Parameter(Mandatory=$true)]
@@ -50,7 +63,12 @@ param(
     [string]$Date,
 
     [Parameter(Mandatory=$false)]
-    [string]$SchemaDir
+    [string]$SchemaDir,
+
+    [Parameter(Mandatory=$false)]
+    [string]$NlsdbSchemaDir,
+
+    [switch]$CheckOnly
 )
 
 Set-Location -Path $PSScriptRoot
@@ -107,9 +125,14 @@ if (-not $SchemaDir) {
 # Resolve SchemaDir so error messages show the full path
 $SchemaDir = (Resolve-Path $SchemaDir -ErrorAction Stop).Path
 
+# The NLSDB layout JSONs live beside the MLRS schema folder: schemas\nlsdb_schemas\.
+if (-not $NlsdbSchemaDir) { $NlsdbSchemaDir = Join-Path (Split-Path $SchemaDir -Parent) 'nlsdb_schemas' }
+
+$Project = 'xentity-sandbox-huy'
 $Dataset = 'blm_seta_dqimp'
 $Bucket  = 'sandbox-blm-seta-dqimp-qaqc'
 $base    = "gs://$Bucket/snapshots/$Date"
+$bt      = [char]96  # backtick for BQ standard SQL table quoting — avoids PS escape conflict
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -131,6 +154,97 @@ function Invoke-Step {
     } catch {
         Write-Host "  ERROR:   $Label — $($_.Exception.Message)"
     }
+}
+
+function Stop-Build {
+    # Print every problem found and stop before anything is loaded to BigQuery.
+    param([string[]]$Problems, [string[]]$WhatToUpdate)
+    Write-Host ""
+    Write-Host ("!" * 60) -ForegroundColor Red
+    Write-Host "STOPPED — the snapshot does not match the expected layout." -ForegroundColor Red
+    Write-Host "Nothing has been loaded to BigQuery." -ForegroundColor Red
+    Write-Host ("!" * 60) -ForegroundColor Red
+    foreach ($p in $Problems) { Write-Host "  - $p" -ForegroundColor Red }
+    Write-Host ""
+    if ($WhatToUpdate) {
+        Write-Host "If BLM changed the export on purpose, update:"
+        foreach ($w in $WhatToUpdate) { Write-Host "  $w" }
+        Write-Host "then re-run. If the change is not expected, raise it with BLM first."
+    }
+    try { Read-Host "Press Enter to close" | Out-Null } catch { }
+    exit 2
+}
+
+function Read-NlsdbLayout {
+    # [ordered] name -> BQ type from one NLSDB layout JSON; stops on a missing or invalid file.
+    param([string]$Path)
+    if (-not (Test-Path $Path)) {
+        Write-Host "ERROR: NLSDB layout file not found: $Path" -ForegroundColor Red
+        Write-Host "       Pass -NlsdbSchemaDir <path> if it lives elsewhere." -ForegroundColor Red
+        exit 1
+    }
+    try {
+        $columns = Get-Content -Raw -Path $Path | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        Write-Host "ERROR: NLSDB layout file is not valid JSON: $Path" -ForegroundColor Red
+        exit 1
+    }
+    $layout = [ordered]@{}
+    foreach ($c in $columns) {
+        if (-not $c.name -or -not $c.type) {
+            Write-Host "ERROR: every entry in $Path needs a name and a type" -ForegroundColor Red
+            exit 1
+        }
+        $layout[$c.name] = $c.type.ToUpper()
+    }
+    return $layout
+}
+
+function ConvertTo-ColumnsDdl {
+    # "  NAME TYPE," lines for the external table DDL. Shape stays BYTES (see BqLoadNlsdbParquet).
+    param($Layout)
+    return (($Layout.Keys | ForEach-Object { "  $_ $($Layout[$_])" }) -join ",`n")
+}
+
+function Get-ParquetLayoutFromBq {
+    # Ask BigQuery how it reads a Parquet file: create a schema-detected external table
+    # (metadata only, no data scanned), read its columns, drop it.
+    # Returns [ordered] name -> type, or $null if the file could not be read.
+    param([string]$TableBase, [string]$GcsParquetPath)
+    $probeName = "${TableBase}_layoutprobe"
+    $probe = "${bt}${Project}.${Dataset}.${probeName}${bt}"
+    "CREATE OR REPLACE EXTERNAL TABLE $probe OPTIONS (format = 'PARQUET', uris = ['$GcsParquetPath']);" |
+        bq query --nouse_legacy_sql --quiet 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { return $null }
+    $json = "SELECT column_name, data_type FROM ${bt}${Project}.${Dataset}.INFORMATION_SCHEMA.COLUMNS${bt} WHERE table_name = '$probeName' ORDER BY ordinal_position" |
+        bq query --nouse_legacy_sql --format=json --max_rows=1000 2>$null | Select-Object -Last 1
+    "DROP TABLE IF EXISTS $probe;" | bq query --nouse_legacy_sql --quiet 2>$null | Out-Null
+    try { $rows = $json | ConvertFrom-Json -ErrorAction Stop } catch { return $null }
+    if (-not $rows) { return $null }
+    $layout = [ordered]@{}
+    foreach ($r in $rows) { $layout[$r.column_name] = $r.data_type }
+    return $layout
+}
+
+function Compare-NlsdbLayout {
+    # Differences between BigQuery's reading of a Parquet file and its layout JSON.
+    param($Found, $Expected, [string]$Label)
+    $problems = @()
+    foreach ($name in $Found.Keys) {
+        $type = $Found[$name]
+        # ogr2ogr adds a GeoParquet <geometry>_bbox struct; the DDL omits it on purpose.
+        if ($name -like '*_bbox' -and $type -like 'STRUCT*') { continue }
+        if (-not $Expected.Contains($name)) { $problems += "${Label}: NEW column $name ($type)" }
+    }
+    foreach ($name in $Expected.Keys) {
+        $want = $Expected[$name]
+        if (-not $Found.Contains($name)) { $problems += "${Label}: column $name ($want) is MISSING"; continue }
+        $got = $Found[$name]
+        # The WKB geometry column is detected as GEOGRAPHY; we load it as BYTES on purpose.
+        if ($want -eq 'BYTES' -and $got -eq 'GEOGRAPHY') { continue }
+        if ($got -ne $want) { $problems += "${Label}: column $name changed type $want -> $got" }
+    }
+    return $problems
 }
 
 function BqLoadCsv {
@@ -172,9 +286,8 @@ function BqLoadNlsdbParquet {
     # BQ's S2 validator. Fix: external table with Shape BYTES (no geography validation),
     # then CTAS with ST_GEOGFROMWKB(Shape, make_valid => TRUE).
     Write-Host "  Loading NLSDB PARQUET $TableBase (ext table + CTAS) ..."
-    $bt  = [char]96  # backtick for BQ standard SQL table quoting — avoids PS escape conflict
-    $ext = "${bt}xentity-sandbox-huy.${Dataset}.${TableBase}_ext${bt}"
-    $tbl = "${bt}xentity-sandbox-huy.${Dataset}.${TableBase}${bt}"
+    $ext = "${bt}${Project}.${Dataset}.${TableBase}_ext${bt}"
+    $tbl = "${bt}${Project}.${Dataset}.${TableBase}${bt}"
     $sql = @"
 CREATE OR REPLACE EXTERNAL TABLE $ext
 (
@@ -193,102 +306,17 @@ DROP TABLE $ext;
 }
 
 # ---------------------------------------------------------------------------
-# NLSDB column schemas for external table DDL
-# Shape is typed BYTES here to bypass BQ geography validation on load;
-# converted to GEOGRAPHY via ST_GEOGFROMWKB in the CTAS step.
+# NLSDB layouts — read from schemas\nlsdb_schemas\ (the same files prepare_snapshot.py
+# checks the Parquet files against). Shape is typed BYTES there to bypass BQ geography
+# validation on load; it is converted to GEOGRAPHY via ST_GEOGFROMWKB in the CTAS step.
 # ---------------------------------------------------------------------------
 
-$NlsdbCaseColumns = @'
-  OBJECTID INT64,
-  ADMIN_STATE STRING,
-  GEO_STATE STRING,
-  BLM_PROD STRING,
-  CSE_DISP STRING,
-  CSE_TYPE_NR STRING,
-  CSE_NR STRING,
-  LEG_CSE_NR STRING,
-  CSE_NAME STRING,
-  CMMDTY STRING,
-  FRMTN STRING,
-  EFF_DT TIMESTAMP,
-  EXP_DT TIMESTAMP,
-  PRDCNG STRING,
-  SALE_DT TIMESTAMP,
-  CUST_NM_SEC STRING,
-  PCT_INT_SEC FLOAT64,
-  INT_REL_SEC STRING,
-  CSE_DISP_DT TIMESTAMP,
-  CSE_JURIS_CD STRING,
-  CSE_JURIS_DESC STRING,
-  CSE_WIDTH STRING,
-  CSE_LGTH STRING,
-  PAT_NR STRING,
-  PAT_ISS_DT TIMESTAMP,
-  SEG_MIN STRING,
-  SEG_SUR STRING,
-  PUB_DT TIMESTAMP,
-  PUB_TYPE STRING,
-  SUPP_USE STRING,
-  TITLE_ACC_DT TIMESTAMP,
-  FUND_BY STRING,
-  SRC STRING,
-  QLTY STRING,
-  CSE_META STRING,
-  PLSSIDS STRING,
-  RCRD_ACRS FLOAT64,
-  GIS_ACRS FLOAT64,
-  PLSS_UPDATE_DT TIMESTAMP,
-  ID STRING,
-  SF_ID STRING,
-  STAGE_ID STRING,
-  Created TIMESTAMP,
-  Modified TIMESTAMP,
-  REC_TYPE_CSE_GRP STRING,
-  MC_PATENTED STRING,
-  MC_EXCLUDED STRING,
-  MC_CONVEYED STRING,
-  CSE_DISP_ACTION STRING,
-  Shape_Length FLOAT64,
-  Shape_Area FLOAT64,
-  Shape BYTES
-'@
-
-$NlsdbCaseLandColumns = @'
-  OBJECTID INT64,
-  CSE_NR STRING,
-  LEG_CSE_NR STRING,
-  REC_TYPE_CSE_GRP STRING,
-  BLM_PROD STRING,
-  CSE_TYPE_NR STRING,
-  CSE_LND_STATUS STRING,
-  CSE_LND_STATUS_DT TIMESTAMP,
-  CSE_LND_NR STRING,
-  US_RIGHTS STRING,
-  DOC_TYPE STRING,
-  DOC_NR STRING,
-  DOC_DT TIMESTAMP,
-  SEG_MIN STRING,
-  SEG_SUR STRING,
-  LND_SELECTED_BY STRING,
-  PRIORITY STRING,
-  CSE_LND_ACRS FLOAT64,
-  CSE_LND_ID STRING,
-  SRC STRING,
-  QLTY STRING,
-  CSE_LND_META STRING,
-  PLSSIDS STRING,
-  PLSS_UPDATE_DT TIMESTAMP,
-  SF_ID STRING,
-  SF_CL_ID STRING,
-  ID STRING,
-  AGG_CLS_ID STRING,
-  QLTY_CK STRING,
-  Created TIMESTAMP,
-  Modified TIMESTAMP,
-  Shape_Length FLOAT64,
-  Shape_Area FLOAT64,
-  Shape BYTES
-'@
+$NlsdbCaseLayoutFile     = Join-Path $NlsdbSchemaDir 'nlsdb_case.json'
+$NlsdbCaseLandLayoutFile = Join-Path $NlsdbSchemaDir 'nlsdb_case_land.json'
+$NlsdbCaseLayout         = Read-NlsdbLayout $NlsdbCaseLayoutFile
+$NlsdbCaseLandLayout     = Read-NlsdbLayout $NlsdbCaseLandLayoutFile
+$NlsdbCaseColumns        = ConvertTo-ColumnsDdl $NlsdbCaseLayout
+$NlsdbCaseLandColumns    = ConvertTo-ColumnsDdl $NlsdbCaseLandLayout
 
 # ---------------------------------------------------------------------------
 # Table list (name + schema file)
@@ -327,12 +355,73 @@ $loads = @(
 
 Write-Host ""
 Write-Host "=== BLM DQIMP Compose + Load + Cleanup — $Date ==="
-Write-Host "  Dataset:    $Dataset"
-Write-Host "  GCS base:   $base"
-Write-Host "  Schema dir: $SchemaDir"
+Write-Host "  Dataset:       $Dataset"
+Write-Host "  GCS base:      $base"
+Write-Host "  Schema dir:    $SchemaDir"
+Write-Host "  NLSDB layouts: $NlsdbSchemaDir"
 Write-Host ""
 
+# --- Pre-flight: check the snapshot's layout before loading anything ---
+Write-Host "--- Pre-flight layout checks ---"
+$problems = @()
+
+# 1. GCS folder: exactly the 24 table folders, plus both Parquet files
+$listing = @(gsutil ls "$base/" 2>$null)
+if ($LASTEXITCODE -ne 0 -or -not $listing) {
+    Stop-Build -Problems @("Could not list $base/ — is gsutil authenticated, and did prepare_snapshot.py finish?")
+}
+$folders = @($listing | Where-Object { $_ -match '/$' } | ForEach-Object { ($_.TrimEnd('/') -split '/')[-1] })
+$files   = @($listing | Where-Object { $_ -notmatch '/$' } | ForEach-Object { ($_ -split '/')[-1] })
+$expectedTables = @($loads | ForEach-Object { $_.name })
+foreach ($t in $expectedTables) {
+    if ($folders -notcontains $t) { $problems += "GCS: no $t folder in $base/ (no non-empty .load files were uploaded for it)" }
+}
+foreach ($f in $folders) {
+    if ($expectedTables -notcontains $f) { $problems += "GCS: UNEXPECTED folder $f in $base/ — a table this script does not load" }
+}
+foreach ($p in @("Case_$Date.parquet", "CaseLands_$Date.parquet")) {
+    if ($files -notcontains $p) { $problems += "GCS: $p is missing from $base/" }
+}
+if ($problems) {
+    Stop-Build -Problems $problems -WhatToUpdate @(
+        "$SchemaDir  (a <table>_schema.json per table)",
+        "and the `$loads list in this script"
+    )
+}
+Write-Host "  OK:      GCS holds the $($expectedTables.Count) table folders and both Parquet files"
+
+# 2. NLSDB: BigQuery's reading of each Parquet file vs its layout JSON
+$nlsdbChecks = @(
+    @{ label='NLSDB Case';      base="nlsdb_case_$Date";      uri="$base/Case_$Date.parquet";      layout=$NlsdbCaseLayout;     file=$NlsdbCaseLayoutFile },
+    @{ label='NLSDB CaseLands'; base="nlsdb_case_land_$Date"; uri="$base/CaseLands_$Date.parquet"; layout=$NlsdbCaseLandLayout; file=$NlsdbCaseLandLayoutFile }
+)
+foreach ($c in $nlsdbChecks) {
+    $found = Get-ParquetLayoutFromBq -TableBase $c.base -GcsParquetPath $c.uri
+    if ($null -eq $found) {
+        $problems += "$($c.label): BigQuery could not read the columns of $($c.uri)"
+        continue
+    }
+    $layerProblems = @(Compare-NlsdbLayout -Found $found -Expected $c.layout -Label $c.label)
+    if ($layerProblems) { $problems += $layerProblems }
+    else { Write-Host "  OK:      $($c.label) matches $(Split-Path $c.file -Leaf) ($($c.layout.Count) columns)" }
+}
+if ($problems) {
+    Stop-Build -Problems $problems -WhatToUpdate @(
+        $NlsdbCaseLayoutFile,
+        $NlsdbCaseLandLayoutFile,
+        "(this script builds the NLSDB tables from these files; check the DQ tests that",
+        " use any column that was renamed or removed)"
+    )
+}
+
+if ($CheckOnly) {
+    Write-Host ""
+    Write-Host "=== Check only — pre-flight checks passed for $Date. Nothing was loaded. ==="
+    exit 0
+}
+
 # --- MLRS tables: wildcard load CR_FULL then append MC ---
+Write-Host ""
 Write-Host "--- MLRS loads ($($loads.Count) tables × 2 passes) ---"
 foreach ($x in $loads) {
     $name   = $x.name

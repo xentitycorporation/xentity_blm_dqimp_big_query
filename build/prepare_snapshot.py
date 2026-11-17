@@ -5,9 +5,26 @@ RECOMMENDED USAGE (from inside the month folder, no arguments needed):
   python prepare_snapshot.py
 
   The script auto-detects the three zip files in the current directory,
-  unzips and renames them correctly, then extracts the MLRS tars and uploads
-  all per-state .load files directly to GCS. BigQuery wildcard loads
-  (handled by BLM_DQIMP_OneStop_param_v4.ps1) consume them from there.
+  unzips and renames them correctly, converts the NLSDB GDB to Parquet,
+  extracts the MLRS tars, checks that everything still has the layout we
+  expect, and only then uploads the per-state .load files and the Parquet
+  files to GCS. BigQuery wildcard loads (handled by
+  BLM_DQIMP_OneStop_param_v4.ps1) consume them from there.
+
+LAYOUT CHECKS (November 2026):
+  Before anything is uploaded, the script stops with exit code 2 if BLM has
+  changed the layout of the delivery:
+    - NLSDB: the Case / CaseLands Parquet columns and types must match
+      schemas/nlsdb_schemas/nlsdb_case.json and nlsdb_case_land.json — the same
+      files the PS1 builds its BigQuery tables from.
+    - MLRS: every state (AK AZ CA CO ES ID MT NM NV OR UT WY) must deliver exactly
+      the 24 tables in schemas/mlrs_export_schemas/, and each file's column count
+      must match its schema JSON.
+  If the change is expected, update the JSON(s), then re-run: finished steps
+  (unzip, tar extraction, Parquet conversion) are skipped on a re-run.
+
+  To run the checks without uploading anything:
+    python prepare_snapshot.py --check-only
 
 MANUAL OVERRIDE (if inputs are already unzipped or have non-standard names):
   python prepare_snapshot.py `
@@ -35,6 +52,7 @@ GCS layout after upload:
 """
 
 import argparse
+import collections
 import glob
 import gzip
 import json
@@ -57,6 +75,20 @@ DEFAULT_BUCKET = 'sandbox-blm-seta-dqimp-qaqc'
 # prints what it looked at, rather than guessing.
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SCHEMA_ENV_VAR = 'BLM_DQIMP_SCHEMA_DIR'
+
+# The NLSDB layout JSONs live beside the MLRS schema folder: schemas/nlsdb_schemas/.
+# --nlsdb-schema-dir overrides that.
+NLSDB_SCHEMA_FOLDER = 'nlsdb_schemas'
+NLSDB_LAYOUT_FILES = {
+    'Case':      'nlsdb_case.json',
+    'CaseLands': 'nlsdb_case_land.json',
+}
+
+# Every MLRS delivery has one tar per BLM state office (ES = Eastern States).
+EXPECTED_STATES = ['AK', 'AZ', 'CA', 'CO', 'ES', 'ID', 'MT', 'NM', 'NV', 'OR', 'UT', 'WY']
+
+# Exit code for "BLM changed the layout" — distinct from 1 (tooling/input errors).
+EXIT_LAYOUT_CHANGED = 2
 
 
 def _has_schemas(path):
@@ -134,6 +166,29 @@ def table_name_from_load(filename):
     elif stem.startswith('MC_'):
         stem = stem[3:]   # strip MC_
     return stem[:-3]      # strip _{STATE} (underscore + 2-letter state code)
+
+
+def state_from_dir(state_dir):
+    """Extract the state code from CR_FULL_{STATE}_{YYYYMMDD} or MC_{STATE}_{YYYYMMDD}."""
+    return os.path.basename(state_dir).split('_')[-2]
+
+
+def stop_layout_changed(problems, what_to_update):
+    """Print every layout problem found and stop before anything is uploaded."""
+    print()
+    print('!' * 60)
+    print('STOPPED — the delivery does not match the expected layout.')
+    print('Nothing has been uploaded to GCS.')
+    print('!' * 60)
+    for line in problems:
+        print(f'  - {line}')
+    print()
+    print('If BLM changed the export on purpose, update the layout to match:')
+    for line in what_to_update:
+        print(f'  {line}')
+    print('then re-run this script (finished steps are skipped). If the change is')
+    print('not expected, raise it with BLM before loading this month.')
+    sys.exit(EXIT_LAYOUT_CHANGED)
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +331,186 @@ def resolve_inputs(args):
 
 
 # ---------------------------------------------------------------------------
-# Steps 1 & 2 — MLRS tar extraction
+# Expected layouts — loaded up front so a missing or broken file fails fast
+# ---------------------------------------------------------------------------
+
+def load_mlrs_column_counts(schema_dir):
+    """{TABLE: column count} from the 24 MLRS schema JSONs."""
+    expected_cols = {}
+    for schema_file in sorted(glob.glob(os.path.join(schema_dir, '*_schema.json'))):
+        with open(schema_file) as f:
+            schema = json.load(f)
+        tname = os.path.basename(schema_file).replace('_schema.json', '').upper()
+        expected_cols[tname] = len(schema)
+    return expected_cols
+
+
+def load_nlsdb_layouts(nlsdb_schema_dir):
+    """{'Case': [(name, BQ type), ...], 'CaseLands': [...]} from the NLSDB layout JSONs."""
+    layouts = {}
+    for layer, fname in NLSDB_LAYOUT_FILES.items():
+        path = os.path.join(nlsdb_schema_dir, fname)
+        try:
+            with open(path, encoding='utf-8') as f:
+                columns = json.load(f)
+            layouts[layer] = [(c['name'], c['type'].upper()) for c in columns]
+        except FileNotFoundError:
+            print(f'  ERROR: NLSDB layout file not found: {path}')
+            print(f'  Pass --nlsdb-schema-dir <path> if it lives elsewhere.')
+            sys.exit(1)
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            print(f'  ERROR: NLSDB layout file is not a valid [{{"name", "type"}}, ...] list: {path}')
+            print(f'         {e}')
+            sys.exit(1)
+    return layouts
+
+
+# ---------------------------------------------------------------------------
+# Step 1 — NLSDB GDB → Parquet, then check the Parquet layout
+# ---------------------------------------------------------------------------
+
+def parquet_is_complete(path):
+    """True if `path` is a readable Parquet file with rows (a crashed ogr2ogr leaves no footer)."""
+    if not os.path.exists(path):
+        return False
+    try:
+        import pyarrow.parquet as pq
+        return pq.read_metadata(path).num_rows > 0
+    except Exception:
+        return False
+
+
+def convert_layer(gdb_path, layer, parquet_path):
+    """ogr2ogr one GDB layer to Parquet, reusing a complete Parquet from an earlier run."""
+    if parquet_is_complete(parquet_path):
+        print(f'  {parquet_path} already exists — reusing it (delete it to force reconversion)')
+        return
+    if os.path.exists(parquet_path):
+        print(f'  {parquet_path} exists but is incomplete — reconverting')
+        os.remove(parquet_path)
+    rc = run_cmd(
+        ['ogr2ogr', '-f', 'Parquet', parquet_path, gdb_path, layer,
+         '-makevalid', '-lco', 'GEOMETRY=AS_WKB', '-t_srs', 'EPSG:4326', '-progress'],
+        f'ogr2ogr {layer} -> {parquet_path}'
+    )
+    if rc != 0:
+        print(f'  ERROR: ogr2ogr failed for {layer} — is the dev conda env active? Aborting.')
+        sys.exit(1)
+
+
+def convert_gdb_to_parquet(gdb_path, date):
+    """
+    Auto-detect the Case_* and CaseLands_* layers in the GDB via fiona,
+    convert each to Parquet using ogr2ogr (same flags as original extract_parquet.txt),
+    and name the output Case_<YYYYMMDD>.parquet / CaseLands_<YYYYMMDD>.parquet so the
+    OneStop PS1 can construct the GCS path from $Date alone.
+    Returns {'Case': case_parquet_path, 'CaseLands': case_land_parquet_path}.
+    """
+    try:
+        import fiona
+        layers = fiona.listlayers(gdb_path)
+    except Exception as e:
+        print(f'  ERROR listing GDB layers: {e}')
+        sys.exit(1)
+
+    case_layers      = [l for l in layers if l.startswith('Case_')]
+    case_land_layers = [l for l in layers if l.startswith('CaseLands_')]
+
+    if not case_layers:
+        print(f'  ERROR: no Case_* layer in GDB. Layers present: {layers}')
+        sys.exit(1)
+    if not case_land_layers:
+        print(f'  ERROR: no CaseLands_* layer in GDB. Layers present: {layers}')
+        sys.exit(1)
+
+    case_layer      = case_layers[0]
+    case_land_layer = case_land_layers[0]
+    print(f'  Detected GDB layers: {case_layer}, {case_land_layer}')
+
+    parquets = {'Case': f'Case_{date}.parquet', 'CaseLands': f'CaseLands_{date}.parquet'}
+    convert_layer(gdb_path, case_layer, parquets['Case'])
+    convert_layer(gdb_path, case_land_layer, parquets['CaseLands'])
+    return parquets
+
+
+def bq_type_of(arrow_type):
+    """The BigQuery type an external table gives a Parquet column (as written in the layout JSONs)."""
+    import pyarrow as pa
+    t = pa.types
+    if t.is_integer(arrow_type):
+        return 'INT64'
+    if t.is_floating(arrow_type):
+        return 'FLOAT64'
+    if t.is_string(arrow_type) or t.is_large_string(arrow_type):
+        return 'STRING'
+    if t.is_timestamp(arrow_type):
+        return 'TIMESTAMP'
+    if t.is_date(arrow_type):
+        return 'DATE'
+    if t.is_boolean(arrow_type):
+        return 'BOOL'
+    if t.is_binary(arrow_type) or t.is_large_binary(arrow_type):
+        return 'BYTES'   # the WKB geometry column, Shape
+    return str(arrow_type).upper()
+
+
+def parquet_layout(parquet_path):
+    """[(name, BQ type), ...] for a Parquet file, leaving out GeoParquet *_bbox covering columns."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    schema = pq.read_schema(parquet_path)
+    layout = []
+    for field in schema:
+        # ogr2ogr adds a <geometry>_bbox struct (GeoParquet covering). The PS1 DDL omits it on
+        # purpose, and it carries no attribute data, so it is not part of the layout.
+        if field.name.endswith('_bbox') and pa.types.is_struct(field.type):
+            continue
+        layout.append((field.name, bq_type_of(field.type)))
+    return layout
+
+
+def compare_layout(found, expected, label):
+    """Differences between a found and an expected [(name, type), ...] layout, as readable lines."""
+    found_types = dict(found)
+    expected_types = dict(expected)
+    problems = []
+    for name, typ in found:
+        if name not in expected_types:
+            problems.append(f'{label}: NEW column {name} ({typ})')
+    for name, typ in expected:
+        if name not in found_types:
+            problems.append(f'{label}: column {name} ({typ}) is MISSING')
+        elif found_types[name] != typ:
+            problems.append(f'{label}: column {name} changed type {typ} -> {found_types[name]}')
+    return problems
+
+
+def check_nlsdb_layout(parquets, layouts, nlsdb_schema_dir):
+    """Stop if either Parquet file's columns or types differ from its layout JSON."""
+    problems = []
+    for layer, parquet_path in parquets.items():
+        found = parquet_layout(parquet_path)
+        layer_problems = compare_layout(found, layouts[layer], f'NLSDB {layer}')
+        if layer_problems:
+            # Save what was found, in the layout-JSON format, so updating the JSON is a copy.
+            found_file = parquet_path.replace('.parquet', '_layout_found.json')
+            with open(found_file, 'w', encoding='utf-8') as f:
+                json.dump([{'name': n, 'type': t} for n, t in found], f, indent=4)
+            layer_problems.append(f'NLSDB {layer}: the layout found was saved to {found_file}')
+        else:
+            print(f'  NLSDB {layer}: {len(found)} columns match {NLSDB_LAYOUT_FILES[layer]}')
+        problems.extend(layer_problems)
+    if problems:
+        stop_layout_changed(problems, [
+            f'{os.path.join(nlsdb_schema_dir, NLSDB_LAYOUT_FILES["Case"])}',
+            f'{os.path.join(nlsdb_schema_dir, NLSDB_LAYOUT_FILES["CaseLands"])}',
+            '(the PS1 builds its BigQuery tables from these same files; check the DQ',
+            ' tests that use any column that was renamed or removed)',
+        ])
+
+
+# ---------------------------------------------------------------------------
+# Steps 2 & 3 — MLRS tar extraction
 # ---------------------------------------------------------------------------
 
 def extract_tars(folder):
@@ -309,66 +543,84 @@ def extract_tars(folder):
 
 
 # ---------------------------------------------------------------------------
-# Column-count validation
+# Step 4 — MLRS layout check (states, tables, column counts)
 # ---------------------------------------------------------------------------
 
-def validate_load_files(folder, schema_dir):
+def check_mlrs_extract(folder, expected_cols):
     """
-    Scan .load files for rows whose pipe count doesn't match the schema's column
-    count. Rows with extra pipes contain an embedded delimiter that BQ will
-    misparse (BQ has no way to distinguish data pipes from delimiter pipes).
-    Runs in seconds — just counting characters per line, no parsing.
+    Check one MLRS extract folder (Full or MC) against the expected layout.
+
+    Returns (layout_problems, bad_row_total):
+      - layout_problems: a missing or unexpected state, a missing or unexpected table, or a
+        file where MOST rows have a different column count than its schema (a column was
+        added or removed). These stop the build.
+      - bad_row_total: rows with a wrong column count in files whose layout is otherwise
+        right — almost always an embedded pipe | in a text field. These are reported, not
+        stopped on (fix the line and re-upload that file, as before).
+
+    The .load files have no header row, so only the column COUNT can be checked: a renamed
+    or reordered column with the same count is invisible here.
     """
-    expected_cols = {}
-    for schema_file in sorted(glob.glob(os.path.join(schema_dir, '*_schema.json'))):
-        with open(schema_file) as f:
-            schema = json.load(f)
-        tname = os.path.basename(schema_file).replace('_schema.json', '').upper()
-        expected_cols[tname] = len(schema)
-
-    if not expected_cols:
-        print(f'  WARNING: no schema files found in {schema_dir} — skipping validation')
-        return 0
-
+    label = os.path.basename(folder)
+    problems = []
     state_dirs = sorted(d for d in glob.glob(os.path.join(folder, '*')) if os.path.isdir(d))
-    total_bad = 0
+    states = {state_from_dir(d): d for d in state_dirs}
 
-    for state_dir in state_dirs:
-        for load_file in sorted(glob.glob(os.path.join(state_dir, '*.load'))):
-            if os.path.getsize(load_file) == 0:
-                continue
-            tname = table_name_from_load(load_file)
-            if tname not in expected_cols:
+    for state in EXPECTED_STATES:
+        if state not in states:
+            problems.append(f'{label}: state {state} is MISSING (no extracted tar for it)')
+    for state in sorted(set(states) - set(EXPECTED_STATES)):
+        problems.append(f'{label}: UNEXPECTED state {state} ({os.path.basename(states[state])})')
+
+    total_bad = 0
+    for state, state_dir in sorted(states.items()):
+        load_files = sorted(glob.glob(os.path.join(state_dir, '*.load')))
+        tables = {table_name_from_load(f): f for f in load_files}
+
+        for tname in sorted(set(expected_cols) - set(tables)):
+            problems.append(f'{label}: table {tname} is MISSING for {state}')
+        for tname in sorted(set(tables) - set(expected_cols)):
+            problems.append(f'{label}: NEW table {tname} for {state} ({os.path.basename(tables[tname])}) '
+                            f'— no schema JSON for it')
+
+        for tname, load_file in sorted(tables.items()):
+            if tname not in expected_cols or os.path.getsize(load_file) == 0:
                 continue
             expected = expected_cols[tname]
             fname = os.path.basename(load_file)
+            rows = 0
             bad_lines = []
+            bad_counts = collections.Counter()
             with open(load_file, 'r', encoding='utf-8', errors='replace') as f:
                 for i, line in enumerate(f, 1):
+                    rows += 1
                     actual = line.rstrip('\n').rstrip('\r').count('|') + 1
                     if actual != expected:
-                        bad_lines.append((i, actual))
-            if bad_lines:
-                total_bad += len(bad_lines)
-                print(f'  WARNING: {fname}: {len(bad_lines)} row(s) with wrong column count '
+                        bad_counts[actual] += 1
+                        if len(bad_lines) < 5:
+                            bad_lines.append((i, actual))
+            n_bad = sum(bad_counts.values())
+            if n_bad * 2 > rows:
+                # Most rows disagree: the file's layout changed, not a few stray pipes.
+                found, found_rows = bad_counts.most_common(1)[0]
+                problems.append(f'{label}: {fname} has {found} columns on {found_rows:,} of {rows:,} rows '
+                                f'— schema expects {expected}')
+            elif n_bad:
+                total_bad += n_bad
+                print(f'  WARNING: {fname}: {n_bad} row(s) with wrong column count '
                       f'(expected {expected}):')
-                for line_num, actual_cols in bad_lines[:5]:
+                for line_num, actual_cols in bad_lines:
                     print(f'    line {line_num}: found {actual_cols} columns')
-                if len(bad_lines) > 5:
-                    print(f'    ... and {len(bad_lines) - 5} more')
+                if n_bad > 5:
+                    print(f'    ... and {n_bad - 5} more')
 
-    if total_bad:
-        print(f'  TOTAL: {total_bad} row(s) with column count mismatches')
-        print(f'  These rows will cause BQ load errors (--max_bad_records=0).')
-        print(f'  Fix the affected .load files before continuing, or accept the data loss.')
-    else:
-        print(f'  All rows have correct column counts.')
-
-    return total_bad
+    if not problems and not total_bad:
+        print(f'  {label}: {len(states)} states x {len(expected_cols)} tables, all rows have correct column counts.')
+    return problems, total_bad
 
 
 # ---------------------------------------------------------------------------
-# Step 3 — Upload .load files to GCS
+# Step 5 — Upload .load files and Parquet files to GCS
 # ---------------------------------------------------------------------------
 
 def upload_load_files(folder, gcs_prefix):
@@ -410,69 +662,13 @@ def upload_load_files(folder, gcs_prefix):
 
 
 # ---------------------------------------------------------------------------
-# Step 4 — NLSDB GDB → Parquet via ogr2ogr + upload
-# ---------------------------------------------------------------------------
-
-def convert_gdb_to_parquet(gdb_path, date):
-    """
-    Auto-detect the Case_* and CaseLands_* layers in the GDB via fiona,
-    convert each to Parquet using ogr2ogr (same flags as original extract_parquet.txt),
-    and name the output Case_<YYYYMMDD>.parquet / CaseLands_<YYYYMMDD>.parquet so the
-    OneStop PS1 can construct the GCS path from $Date alone.
-    Returns (case_parquet_path, case_land_parquet_path).
-    """
-    try:
-        import fiona
-        layers = fiona.listlayers(gdb_path)
-    except Exception as e:
-        print(f'  ERROR listing GDB layers: {e}')
-        sys.exit(1)
-
-    case_layers      = [l for l in layers if l.startswith('Case_')]
-    case_land_layers = [l for l in layers if l.startswith('CaseLands_')]
-
-    if not case_layers:
-        print(f'  ERROR: no Case_* layer in GDB. Layers present: {layers}')
-        sys.exit(1)
-    if not case_land_layers:
-        print(f'  ERROR: no CaseLands_* layer in GDB. Layers present: {layers}')
-        sys.exit(1)
-
-    case_layer      = case_layers[0]
-    case_land_layer = case_land_layers[0]
-    print(f'  Detected GDB layers: {case_layer}, {case_land_layer}')
-
-    case_parquet      = f'Case_{date}.parquet'
-    case_land_parquet = f'CaseLands_{date}.parquet'
-
-    rc = run_cmd(
-        ['ogr2ogr', '-f', 'Parquet', case_parquet, gdb_path, case_layer,
-         '-makevalid', '-lco', 'GEOMETRY=AS_WKB', '-t_srs', 'EPSG:4326', '-progress'],
-        f'ogr2ogr {case_layer} -> {case_parquet}'
-    )
-    if rc != 0:
-        print(f'  ERROR: ogr2ogr failed for {case_layer} — is the dev conda env active? Aborting.')
-        sys.exit(1)
-    rc = run_cmd(
-        ['ogr2ogr', '-f', 'Parquet', case_land_parquet, gdb_path, case_land_layer,
-         '-makevalid', '-lco', 'GEOMETRY=AS_WKB', '-t_srs', 'EPSG:4326', '-progress'],
-        f'ogr2ogr {case_land_layer} -> {case_land_parquet}'
-    )
-    if rc != 0:
-        print(f'  ERROR: ogr2ogr failed for {case_land_layer} — is the dev conda env active? Aborting.')
-        sys.exit(1)
-
-    return case_parquet, case_land_parquet
-
-
-# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
         description=(
-            'BLM DQIMP monthly snapshot prep — unzip, extract, upload .load files to GCS.\n'
+            'BLM DQIMP monthly snapshot prep — unzip, convert, check layouts, upload to GCS.\n'
             'Run with no arguments from the month folder for fully automatic operation.\n'
             'BigQuery wildcard loads are handled by BLM_DQIMP_OneStop_param_v4.ps1.'
         )
@@ -490,40 +686,21 @@ def main():
     parser.add_argument('--gdb', default=None,
                         help='Pre-unzipped NLSDB GDB path — skips zip auto-detect and unzip')
     parser.add_argument('--schema-dir', default=None,
-                        help='Directory containing BQ schema JSON files for column count '
-                             'validation (default: auto-detected — the repo\'s '
+                        help='Directory containing the 24 MLRS BQ schema JSON files '
+                             '(default: auto-detected — the repo\'s '
                              'schemas/mlrs_export_schemas found by walking up from this '
                              'script, then a schemas/ folder beside it, then '
                              f'${SCHEMA_ENV_VAR})')
+    parser.add_argument('--nlsdb-schema-dir', default=None,
+                        help='Directory containing nlsdb_case.json and nlsdb_case_land.json '
+                             f'(default: the {NLSDB_SCHEMA_FOLDER} folder beside the MLRS schema folder)')
+    parser.add_argument('--check-only', action='store_true',
+                        help='Unzip, convert and run every layout check, but upload nothing')
     args = parser.parse_args()
 
-    # --- Step 0: Unzip / locate inputs ---
+    # --- Step 0: Unzip / locate inputs, load the expected layouts ---
     print(f'\n{"="*60}')
-    print(f'[0/4] Locating and unzipping inputs')
-    print(f'{"="*60}')
-    full_dir, mc_dir, gdb_path, date = resolve_inputs(args)
-    gcs_prefix = f'gs://{args.bucket}/snapshots/{date}'
-    print(f'  Snapshot date : {date}')
-    print(f'  MLRS Full     : {full_dir}')
-    print(f'  MLRS MC       : {mc_dir}')
-    print(f'  NLSDB GDB     : {gdb_path}')
-    print(f'  GCS target    : {gcs_prefix}')
-
-    # --- Step 1: Extract MLRS Full tars ---
-    print(f'\n{"="*60}')
-    print(f'[1/4] Extracting MLRS Full: {full_dir}')
-    print(f'{"="*60}')
-    extract_tars(full_dir)
-
-    # --- Step 2: Extract MLRS MC tars ---
-    print(f'\n{"="*60}')
-    print(f'[2/4] Extracting MLRS MC: {mc_dir}')
-    print(f'{"="*60}')
-    extract_tars(mc_dir)
-
-    # --- Validate column counts against schemas ---
-    print(f'\n{"="*60}')
-    print(f'Validating .load file column counts against schemas')
+    print(f'[0/5] Locating inputs and expected layouts')
     print(f'{"="*60}')
     schema_dir = args.schema_dir or resolve_schema_dir()
     if not schema_dir:
@@ -532,24 +709,71 @@ def main():
             print(f'    - {entry}')
         print(f'  Pass --schema-dir <path>, or set {SCHEMA_ENV_VAR}.')
         sys.exit(1)
-    print(f'  Schema dir    : {schema_dir}')
-    bad_full = validate_load_files(full_dir, schema_dir)
-    bad_mc = validate_load_files(mc_dir, schema_dir)
+    nlsdb_schema_dir = args.nlsdb_schema_dir or os.path.join(
+        os.path.dirname(os.path.normpath(schema_dir)), NLSDB_SCHEMA_FOLDER)
+    expected_cols = load_mlrs_column_counts(schema_dir)
+    nlsdb_layouts = load_nlsdb_layouts(nlsdb_schema_dir)
 
-    # --- Step 3: Upload .load files to GCS ---
+    full_dir, mc_dir, gdb_path, date = resolve_inputs(args)
+    gcs_prefix = f'gs://{args.bucket}/snapshots/{date}'
+    print(f'  Snapshot date : {date}')
+    print(f'  MLRS Full     : {full_dir}')
+    print(f'  MLRS MC       : {mc_dir}')
+    print(f'  NLSDB GDB     : {gdb_path}')
+    print(f'  MLRS schemas  : {schema_dir} ({len(expected_cols)} tables)')
+    print(f'  NLSDB layouts : {nlsdb_schema_dir}')
+    print(f'  GCS target    : {gcs_prefix}' + ('  (CHECK ONLY — nothing will be uploaded)' if args.check_only else ''))
+
+    # --- Step 1: NLSDB GDB → Parquet, check layout (first, so a change stops us in minutes) ---
     print(f'\n{"="*60}')
-    print(f'[3/4] Uploading .load files to GCS: {gcs_prefix}')
+    print(f'[1/5] Converting NLSDB GDB to Parquet + checking layout: {gdb_path}')
+    print(f'{"="*60}')
+    parquets = convert_gdb_to_parquet(gdb_path, date)
+    check_nlsdb_layout(parquets, nlsdb_layouts, nlsdb_schema_dir)
+
+    # --- Step 2: Extract MLRS Full tars ---
+    print(f'\n{"="*60}')
+    print(f'[2/5] Extracting MLRS Full: {full_dir}')
+    print(f'{"="*60}')
+    extract_tars(full_dir)
+
+    # --- Step 3: Extract MLRS MC tars ---
+    print(f'\n{"="*60}')
+    print(f'[3/5] Extracting MLRS MC: {mc_dir}')
+    print(f'{"="*60}')
+    extract_tars(mc_dir)
+
+    # --- Step 4: Check MLRS layout against the schemas ---
+    print(f'\n{"="*60}')
+    print(f'[4/5] Checking MLRS layout (states, tables, column counts) against the schemas')
+    print(f'{"="*60}')
+    problems_full, bad_full = check_mlrs_extract(full_dir, expected_cols)
+    problems_mc, bad_mc = check_mlrs_extract(mc_dir, expected_cols)
+    if problems_full or problems_mc:
+        stop_layout_changed(problems_full + problems_mc, [
+            f'{schema_dir}  (one <table>_schema.json per table; the PS1 also needs a',
+            ' new table added to its $loads list)',
+        ])
+    if bad_full or bad_mc:
+        print(f'  TOTAL: {bad_full + bad_mc} row(s) with column count mismatches')
+        print(f'  These rows will cause BQ load errors (--max_bad_records=0).')
+        print(f'  Fix the affected .load files before continuing, or accept the data loss.')
+    print('  Layout checks passed.')
+
+    if args.check_only:
+        print(f'\n{"="*60}')
+        print(f'Check only — all layout checks passed for snapshot {date}. Nothing was uploaded.')
+        print(f'{"="*60}')
+        return
+
+    # --- Step 5: Upload .load files and Parquet files to GCS ---
+    print(f'\n{"="*60}')
+    print(f'[5/5] Uploading .load files and Parquet files to GCS: {gcs_prefix}')
     print(f'{"="*60}')
     upload_load_files(full_dir, gcs_prefix)
     upload_load_files(mc_dir, gcs_prefix)
-
-    # --- Step 4: NLSDB GDB → Parquet → GCS ---
-    print(f'\n{"="*60}')
-    print(f'[4/4] Converting NLSDB GDB to Parquet + uploading: {gdb_path}')
-    print(f'{"="*60}')
-    case_pq, case_land_pq = convert_gdb_to_parquet(gdb_path, date)
-    rc1 = run_cmd(['gsutil', '-o', 'GSUtil:check_hashes=always', 'cp', case_pq,      f'{gcs_prefix}/{case_pq}'],      f'upload {case_pq}')
-    rc2 = run_cmd(['gsutil', '-o', 'GSUtil:check_hashes=always', 'cp', case_land_pq, f'{gcs_prefix}/{case_land_pq}'], f'upload {case_land_pq}')
+    rc1 = run_cmd(['gsutil', '-o', 'GSUtil:check_hashes=always', 'cp', parquets['Case'],      f'{gcs_prefix}/{parquets["Case"]}'],      f'upload {parquets["Case"]}')
+    rc2 = run_cmd(['gsutil', '-o', 'GSUtil:check_hashes=always', 'cp', parquets['CaseLands'], f'{gcs_prefix}/{parquets["CaseLands"]}'], f'upload {parquets["CaseLands"]}')
     if rc1 != 0 or rc2 != 0:
         print(f'  ERROR: Parquet upload to GCS failed (hash check or transfer error).')
         print(f'  Re-run the failed gsutil cp command(s) above before running the PS1. Aborting.')

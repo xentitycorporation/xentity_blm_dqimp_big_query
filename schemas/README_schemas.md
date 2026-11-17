@@ -15,7 +15,17 @@ The NLSDB is the geospatial database that contains all of the geospatial represe
 These json files were created from the excel sheet that is distributed by the BLM with each monthly extract.
 
 ## NLSDB Schemas 
-These json files were created by converting the NLSDB export attributes.
+`nlsdb_schemas/nlsdb_case.json` and `nlsdb_case_land.json` are the expected layout of the two
+NLSDB tables — every column BLM delivers in the Case and CaseLands layers, with its BigQuery type,
+in the same `{"name", "type"}` format as the MLRS schemas. They hold the layout delivered since the
+Azure migration (October 2026). `Shape` is `BYTES` on purpose: the build loads the WKB geometry as
+bytes and converts it to `GEOGRAPHY` in BigQuery.
+
+They are used by the monthly build in `build/`: `prepare_snapshot.py` stops before uploading if a
+month's Parquet files differ from them, and `BLM_DQIMP_OneStop_param_v4.ps1` builds the
+`nlsdb_case_<date>` / `nlsdb_case_land_<date>` tables from them. **If BLM changes the NLSDB layout,
+update these files** — the build tells you when (see `build/README_build.md`, "When the script
+stops: a layout change").
 
 ## Lookup Tables
 `lookup_tables/` holds reference tables that Xentity maintains and loads into BigQuery. These are
