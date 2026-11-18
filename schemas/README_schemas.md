@@ -14,6 +14,11 @@ The NLSDB is the geospatial database that contains all of the geospatial represe
 ## MLRS Extract Schemas 
 These json files were created from the excel sheet that is distributed by the BLM with each monthly extract.
 
+**Expected change:** BLM announced that `CASE_LAND` gains `IS_INACTIVE` (1 = Inactive, 0 = Active) as its last
+column from the 11/15/2026 extract. `case_land_schema.json` still has 40 columns. Add
+`{"name": "IS_INACTIVE", "type": "STRING"}` at the end once the delivery confirms it (see
+`build/README_build.md`, "Layout Change Log").
+
 ## NLSDB Schemas 
 `nlsdb_schemas/nlsdb_case.json` and `nlsdb_case_land.json` are the expected layout of the two
 NLSDB tables — every column BLM delivers in the Case and CaseLands layers, with its BigQuery type,
@@ -26,6 +31,10 @@ month's Parquet files differ from them, and `BLM_DQIMP_OneStop_param_v4.ps1` bui
 `nlsdb_case_<date>` / `nlsdb_case_land_<date>` tables from them. **If BLM changes the NLSDB layout,
 update these files** — the build tells you when (see `build/README_build.md`, "When the script
 stops: a layout change").
+
+`CreatedBy` and `ModifiedBy` in `nlsdb_case_land.json` are listed only because BLM still delivers them.
+BLM confirmed on 2026-11-18 that they were added in error (they hold Salesforce user names). Remove
+them from the file when a delivery no longer has them, and do not use them in DQ work.
 
 ## Lookup Tables
 `lookup_tables/` holds reference tables that Xentity maintains and loads into BigQuery. These are

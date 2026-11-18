@@ -55,7 +55,11 @@ File naming convention: `CR_FULL_<STATE>_YYYYMMDD.tar`
 
 ### 2. MLRS Mining Claims Extract
 
-Separate folder, same state structure, contains only mining claims records:
+Separate folder, same state structure, contains the mining claims data. All other (non-mining-claim)
+Salesforce data is in the Full extract. On 11/1/2026 the Full `BLM_CASE` files held no Mining Claim
+record-type rows. The MC `BLM_CASE` files held 4,422,352 Mining Claim rows plus 76,180 Status and
+Solid Minerals record-type rows, all under General Mining Laws products (codes 38xxxx, e.g. mineral
+patents and patent applications):
 
 ```
 2025-12-07_MLRS_MC/
@@ -533,6 +537,16 @@ Zip file naming conventions from BLM:
 > **Note:** The MLRS and NLSDB dates can differ — MLRS and NLSDB are exported on different days.
 > The `--date` used for BigQuery table names is always derived from the **MLRS** date.
 
+> **Check the date inside the zips, not just the label.** `prepare_snapshot.py` derives `--date`
+> from the MLRS Full folder name (the zip label). The post-migration delivery of October 2026 was
+> labelled `2026-10-26` but every tar inside was dated `20261025`, so it was built with
+> `--date 20261025`. If the label and the tar names disagree, pass `--date` from the tar names.
+
+> **A delivery without a CaseLands layer stops the build** (`ERROR: no CaseLands_* layer in GDB`).
+> The pre-migration delivery of 10/18/2026 had the NLSDB Case layer only (layer
+> `Case_ExportFeatures_10152026`); it was built with a one-off copy of the scripts that added
+> `--no-case-lands` / `-NoCaseLands`. Those options are not in these scripts.
+
 Verify the three zips are present before continuing:
 
 ```powershell
@@ -778,6 +792,19 @@ SELECT 'nlsdb_case_land' AS tbl, COUNT(*) AS rows FROM `xentity-sandbox-huy.blm_
 
 Compare row counts against the prior month's snapshot to sanity-check for unexpected drops or spikes.
 
+Then confirm how recent the data is. **MLRS dates are text in `MM/DD/YYYY` form, so a raw `MAX()`
+sorts them alphabetically and returns the wrong answer** (`12/31/2025` on the 11/1/2026 snapshot).
+Parse them first. Count real cases without the Status and Bond record types:
+
+```sql
+SELECT COUNTIF(RECORDTYPEID NOT IN ('0123d0000005ISFAA2', '0123d0000004QFQAA2')) AS real_cases,
+       MAX(SAFE.PARSE_TIMESTAMP('%m/%d/%Y %H:%M:%S', CREATEDDATE))      AS latest_created,
+       MAX(SAFE.PARSE_TIMESTAMP('%m/%d/%Y %H:%M:%S', LASTMODIFIEDDATE)) AS latest_modified
+FROM `xentity-sandbox-huy.blm_seta_dqimp.blm_case_20260607`;
+
+SELECT MAX(Modified) AS latest_modified FROM `xentity-sandbox-huy.blm_seta_dqimp.nlsdb_case_20260607`;
+```
+
 ---
 
 ### Step 6 — Manual GCS cleanup (only after Step 5 verification passes)
@@ -799,6 +826,11 @@ gsutil ls "gs://sandbox-blm-seta-dqimp-qaqc/snapshots/<YYYYMMDD>/"
 
 Expected output: `Case_<YYYYMMDD>.parquet` and `CaseLands_<YYYYMMDD>.parquet` only
 (public-extract months also keep `StatusRecords_<YYYYMMDD>.parquet`).
+
+> **Status on 2026-11-18:** cleanup has not been run for `20261004`, `20261018`, `20261025` or
+> `20261101`; each still holds its 540 `.load` files. They have been useful for checking what BLM
+> actually delivered (for example, unpacked extract sizes and quoted values). Decide whether to
+> keep them before running the cleanup.
 
 ---
 
@@ -893,6 +925,19 @@ inside BQ rather than being enforced at load time.
 
 ---
 
+## Layout Change Log (BLM export changes)
+
+What BLM has changed in the delivered layouts, and what is expected next. Add a row whenever the build
+stops on a layout change or BLM announces one, and update the schema files to match (see "When the
+script stops: a layout change" in Step 3).
+
+| When | Delivery | Change | Status / what to do |
+|---|---|---|---|
+| October 2026 Azure migration (first in the 10/25/2026 delivery) | NLSDB Case | `GIS_ACRS` removed | Intentional, confirmed by BLM on 2026-11-18. Already reflected in `nlsdb_case.json`. |
+| Same | NLSDB CaseLands | `QLTY_CK` removed | Intentional, confirmed by BLM on 2026-11-18. Already reflected in `nlsdb_case_land.json`. |
+| Same | NLSDB CaseLands | `CreatedBy` and `ModifiedBy` added (STRING, Salesforce user names) | **Added in error.** BLM confirmed on 2026-11-18 that they were not meant to be in the delivery. They stay in `nlsdb_case_land.json` while BLM still delivers them. **Expect a later delivery to drop them:** the build will then stop with `column CreatedBy (STRING) is MISSING` and the same for `ModifiedBy`. That stop is expected: delete the two entries from `nlsdb_case_land.json` and re-run. Do not use either column in DQ tests or outputs, because they hold user names. They remain in `nlsdb_case_land_20261025` and `nlsdb_case_land_20261101`, and in those dates' CaseLands Parquet files in GCS. |
+| Announced for the 11/15/2026 extract (delivered 11/16/2026) | MLRS Full and MC, `CASE_LAND` | `IS_INACTIVE NUMBER(1,0)` added as the **last** column. 1 = Inactive, 0 = Active. Per BLM, inactive lands were once part of the proposal or authorized use but no longer are: applications rejected, denied or withdrawn in whole or in part, partial relinquishments, terminations, cancellations. BLM says its schema document is updated. | **Not yet received; schema not yet changed.** `case_land_schema.json` has 40 columns and the new files will have 41, so `prepare_snapshot.py` will stop at the MLRS layout check with `CR_FULL_CASE_LAND_<ST>.load has 41 columns on ... rows — schema expects 40` (the PS1's `--max_bad_records=0` load would reject every row anyway). When the delivery arrives: (1) run `prepare_snapshot.py --check-only` and confirm that only the `CASE_LAND` files report 41 columns; (2) check that the last field of a few `CASE_LAND` rows is `0` or `1`; (3) append `{"name": "IS_INACTIVE", "type": "STRING"}` as the last entry of `schemas/mlrs_export_schemas/case_land_schema.json` (STRING, like every MLRS column); (4) re-run. Earlier `case_land_<date>` tables keep 40 columns; a wildcard query over `case_land_2*` returns NULL for `IS_INACTIVE` on dates before the change. |
+
 ## Known Issues / Watch-outs
 
 | Issue | Detail |
@@ -914,6 +959,7 @@ inside BQ rather than being enforced at load time.
 | NLSDB public extract — schema differences by tooling path | The differences observed between Feb 2026 and Oct/Nov 2025 are due to different tooling paths, not API inconsistency. Oct/Nov used ogr2ogr end-to-end (`OBJECTID` + `fid`, correct Case_Land schema). Feb 2026 used ArcPro Export Features (`OBJECTID_1`, `nlsdb_Shape`, `Shape_Length`, `Shape_Area`, TIMESTAMP dates) because the user's ogr2ogr install was broken. Standardize on the `dev` conda env's ogr2ogr; see DQIMP §6.3.10 §C and §E. When BQ loads fail with type mismatch (e.g., `Shape has type DOUBLE`), inspect the Parquet with `pyarrow.parquet.read_schema()` and generate the external table DDL manually. |
 | Silent upload corruption (gsutil) | `gsutil cp` can silently corrupt large files (~400 MiB+) during upload — the GCS copy differs from the local file but gsutil reports success. This causes BQ load failures with "Too many values in line" errors that the column-count validation cannot catch (the local file is clean). **Fix:** `prepare_snapshot.py` now uses `-o "GSUtil:check_hashes=always"` on all uploads, which forces post-upload hash verification and fails loudly on mismatch. If a hash mismatch occurs, re-upload the affected file. Discovered on September 2025 BLM_CASE MT (429 MiB). Long-term fix: migrate from `gsutil` to `gcloud storage cp`. |
 | BLM changes the export layout | **Caught automatically since November 2026** — `prepare_snapshot.py` and the PS1 both stop before uploading or loading anything (see "When the script stops: a layout change" in Step 3). Before this, a layout change produced **no error at all**: the Azure migration (October 2026) dropped `GIS_ACRS` from NLSDB Case, dropped `QLTY_CK` from CaseLands and added `CreatedBy`/`ModifiedBy`, and the November 2026 load ran with the old hardcoded column lists. BigQuery matches Parquet columns by name, returning NULL for a declared column the file lacks and ignoring a file column that is not declared, so `nlsdb_case_land_20261101` silently lost the two new columns and both tables gained an empty column. Rebuilt from the GCS Parquet files on 2026-11-17. |
+| Quoted values in the delivered files | Quotes are stored exactly as delivered (`--quote=""`). From the 11/1/2026 delivery, `BLM_PRODUCT.DESCRIPTION` / `CASE_GROUP_DESCR` (171 rows) and `CASE_GROUP_D.DESCRIPTION` (24 rows) hold `"Leases, Permits and Easements"` with literal double quotes. The 12/2025–5/2026 deliveries hold the same value cut to `"Leases` (checked in the source files of five of those six months). Both are in BLM's delivered files, not load errors, so text matches on the plain value miss these rows. No other column changed this way. |
 | Re-running extract | `prepare_snapshot.py` skips the unzip, tar extraction and Parquet conversion if their output already exists (a Parquet file is reused only if it is complete — readable, with rows). Empty `.load` files (states with no records) are silently filtered before upload — safe to re-run. |
 | State code `ES` | Eastern States. Included in both Full and MC folders alongside the 11 western state codes (AK, AZ, CA, CO, ID, MT, NM, NV, OR, UT, WY). |
 
