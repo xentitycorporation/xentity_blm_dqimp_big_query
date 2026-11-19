@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 *)",
+      "Bash(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 *)",
+      "Bash(bq ls *)",
+      "Bash(bq show *)",
+      "PowerShell(bq ls *)",
+      "PowerShell(bq show *)",
+      "Bash(gsutil ls *)",
+      "Bash(gsutil du *)",
+      "PowerShell(gsutil ls *)",
+      "PowerShell(gsutil du *)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "PowerShell(git status *)",
+      "PowerShell(git log *)",
+      "PowerShell(git diff *)",
+      "PowerShell(git branch *)"
+    ],
+    "ask": [
+      "Edit(schemas/**)",
+      "Edit(build/**)"
+    ],
+    "deny": [
+      "Bash(gsutil rm *)",
+      "Bash(gsutil -m rm *)",
+      "Bash(gcloud storage rm *)",
+      "Bash(bq rm *)",
+      "PowerShell(gsutil rm *)",
+      "PowerShell(gsutil -m rm *)",
+      "PowerShell(gcloud storage rm *)",
+      "PowerShell(bq rm *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "PowerShell(git push *)",
+      "PowerShell(git commit *)"
+    ]
+  }
+}

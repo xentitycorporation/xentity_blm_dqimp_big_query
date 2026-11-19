@@ -1,4 +1,4 @@
-# BLM DQIMP - One-Stop Load + Cleanup (v4, wildcard BQ loads)
+﻿# BLM DQIMP - One-Stop Load + Cleanup (v4, wildcard BQ loads)
 #
 # Changes from v3:
 #   - Added -SchemaDir parameter so JSON schemas don't have to live next to this script.
@@ -52,9 +52,17 @@
 #          external table) has the columns and types in the layout JSON.
 #   - -CheckOnly runs the pre-flight checks and loads nothing.
 #
+# Unattended runs (November 2026):
+#   - -NoPause skips the "Press Enter to close" prompts, so the script can run from a VS Code
+#     task or the build agent with no one at the keyboard.
+#   - The exit code now says whether the loads worked: 0 = every step OK, 1 = at least one
+#     load step failed (its WARNING/ERROR line says which), 2 = stopped on a layout change.
+#     Previously the script always ended normally and only the printed lines showed a failure.
+#
 # Usage:
 #   .\BLM_DQIMP_OneStop_param_v4.ps1 -Date 20260607
 #   .\BLM_DQIMP_OneStop_param_v4.ps1 -Date 20260607 -CheckOnly
+#   .\BLM_DQIMP_OneStop_param_v4.ps1 -Date 20260607 -NoPause
 #   .\BLM_DQIMP_OneStop_param_v4.ps1 -Date 20260607 -SchemaDir "C:\path\to\schemas\mlrs_export_schemas"
 
 param(
@@ -68,7 +76,9 @@ param(
     [Parameter(Mandatory=$false)]
     [string]$NlsdbSchemaDir,
 
-    [switch]$CheckOnly
+    [switch]$CheckOnly,
+
+    [switch]$NoPause
 )
 
 Set-Location -Path $PSScriptRoot
@@ -138,6 +148,8 @@ $bt      = [char]96  # backtick for BQ standard SQL table quoting — avoids PS 
 # Helpers
 # ---------------------------------------------------------------------------
 
+$script:FailedSteps = 0   # counted by Invoke-Step; sets the exit code at the end
+
 function Invoke-Step {
     param(
         [Parameter(Mandatory=$true)][scriptblock]$Action,
@@ -150,9 +162,11 @@ function Invoke-Step {
             Write-Host "  OK:      $Label"
         } else {
             Write-Host "  WARNING: $Label (exit $code)"
+            $script:FailedSteps++
         }
     } catch {
         Write-Host "  ERROR:   $Label — $($_.Exception.Message)"
+        $script:FailedSteps++
     }
 }
 
@@ -171,7 +185,7 @@ function Stop-Build {
         foreach ($w in $WhatToUpdate) { Write-Host "  $w" }
         Write-Host "then re-run. If the change is not expected, raise it with BLM first."
     }
-    try { Read-Host "Press Enter to close" | Out-Null } catch { }
+    if (-not $NoPause) { try { Read-Host "Press Enter to close" | Out-Null } catch { } }
     exit 2
 }
 
@@ -423,6 +437,11 @@ if ($CheckOnly) {
 # --- MLRS tables: wildcard load CR_FULL then append MC ---
 Write-Host ""
 Write-Host "--- MLRS loads ($($loads.Count) tables × 2 passes) ---"
+# Some tables have no mining-claims rows in any state (ACTION_CASE and SUPPLEMENTAL_USE in
+# 2026), so prepare_snapshot.py uploads no MC files for them and the MC append would fail with
+# "Not found: Uris". List the uploaded objects once and skip an MC append that has no files, so
+# a WARNING always means a real failure.
+$objectNames = @(gsutil ls "$base/**" 2>$null | ForEach-Object { ($_ -split '/')[-1] })
 foreach ($x in $loads) {
     $name   = $x.name
     $schema = Join-Path $SchemaDir $x.schema
@@ -433,6 +452,10 @@ foreach ($x in $loads) {
     Write-Host ""
     Write-Host "  [$name]"
     Invoke-Step { BqLoadCsv -SchemaFile $schema -TableId $table -GcsCsvPath $cr         } "bq load CR_FULL $name"
+    if (@($objectNames | Where-Object { $_ -like "MC_${name}_*.load" }).Count -eq 0) {
+        Write-Host "  SKIP:    bq load MC $name (append) — no MC files in GCS (every MC state file was empty)"
+        continue
+    }
     Invoke-Step { BqLoadCsv -SchemaFile $schema -TableId $table -GcsCsvPath $mc -Append } "bq load MC $name (append)"
 }
 
@@ -460,5 +483,11 @@ Invoke-Step {
 #   gsutil -m rm "$base/**/*.load"
 
 Write-Host ""
-Write-Host "=== Done for $Date. Review any WARNING/ERROR lines above. ==="
-Read-Host "Press Enter to close"
+if ($script:FailedSteps -gt 0) {
+    Write-Host "=== $($script:FailedSteps) step(s) FAILED for $Date. See the WARNING/ERROR lines above. ===" -ForegroundColor Red
+} else {
+    Write-Host "=== Done for $Date. Every load step reported OK. ==="
+}
+if (-not $NoPause) { Read-Host "Press Enter to close" | Out-Null }
+if ($script:FailedSteps -gt 0) { exit 1 }
+exit 0

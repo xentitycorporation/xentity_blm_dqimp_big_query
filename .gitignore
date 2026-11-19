@@ -34,3 +34,6 @@ __pycache__/
 .venv/
 .ipynb_checkpoints/
 .vscode/settings.json
+# Monthly build: machine-specific paths and Claude Code personal settings
+build/monthly_build.local.json
+.claude/settings.local.json
