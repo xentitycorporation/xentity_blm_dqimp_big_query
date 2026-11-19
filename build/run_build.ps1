@@ -1,6 +1,6 @@
 ﻿<#
 run_build.ps1 — one entry point for each step of the monthly build, used by the VS Code tasks
-and by the build agent (.claude/skills/monthly-build). It runs the existing scripts in this
+and by the build agent (build/.claude/skills/monthly-build). It runs the existing scripts in this
 folder; it does not replace them.
 
   -Step preflight   tools, sign-ins, shared folders, disk space (changes nothing)

@@ -422,9 +422,19 @@ The steps below can be run three ways. All three run the same scripts.
 
 | Way | How | When |
 |---|---|---|
-| **Build agent** | Open this repo in VS Code, open the Claude Code panel, type `/monthly-build` | Normal months. Runs every step, stops only when a person must decide, writes `Build_Report_<date>.md` in the month folder |
-| **VS Code tasks** | `Ctrl+Shift+P` → *Tasks: Run Task* → `Build 0` … `Build 5` | Running or re-running one step by hand |
+| **Build agent** | Open the repo's **`build\` folder** in VS Code (File → Open Folder → `...\xentity_blm_dqimp_big_query\build`), open the Claude Code panel, type `/monthly-build` | Normal months. Runs every step, stops only when a person must decide, writes `Build_Report_<date>.md` in the month folder |
+| **VS Code tasks** | With `build\` open: `Ctrl+Shift+P` → *Tasks: Run Task* → `Build 0` … `Build 5` | Running or re-running one step by hand |
 | **By hand** | The PowerShell commands in Steps 1–6 below | Troubleshooting |
+
+**The `build\` folder is the build agent's home.** The agent's Claude Code settings, guard hook and runbook
+are in `build\.claude\`, and its VS Code tasks are in `build\.vscode\tasks.json`. Claude Code and VS Code
+read them only when `build\` is the folder that's open. Each agent in this repo has its own folder like this
+(the dashboard update agent's is `web-app\`). A session opened at the repo root is for general work: it runs
+the same build guard, but it asks before every build step and has no `/monthly-build` runbook of its own. If
+the runbook is started anywhere other than `build\`, its first step stops it.
+
+When VS Code opens `build\`, it may ask whether to open the Git repository in the parent folder: say yes, so
+the branch shows in the status bar.
 
 **One-time setup per machine**
 1. Copy `build\monthly_build.example.json` to `build\monthly_build.local.json` (git-ignored) and set
@@ -433,8 +443,15 @@ The steps below can be run three ways. All three run the same scripts.
 2. PowerShell 7 (`pwsh`) must be installed; the tasks, the agent and the load step run with it.
    `BLM_DQIMP_OneStop_param_v4.ps1` is saved as UTF-8 **with a byte-order mark**: without one, Windows
    PowerShell 5.1 misreads its em dashes and the script does not parse. Keep the BOM when editing it.
-3. For the agent: give Claude Code access to the data and drop folders in `.claude\settings.local.json`
-   (git-ignored) under `permissions.additionalDirectories`.
+3. For the agent: give Claude Code access to the data folder, the drop folders and the repo's `schemas\`
+   folder in `build\.claude\settings.local.json` (git-ignored) under `permissions.additionalDirectories`,
+   with full paths, for example:
+   ```json
+   { "permissions": { "additionalDirectories": [
+       "D:\\Xentity\\BLM\\DQIMP\\Data",
+       "G:\\Shared drives\\Project-BLM-SETA\\GIS Task\\DQIMP\\Data Warehouse",
+       "D:\\Xentity\\BLM\\BLM_DQIMP_GitRepo\\xentity_blm_dqimp_big_query\\schemas" ] } }
+   ```
 
 **What `run_build.ps1` adds to the manual steps**
 - `-Step preflight` checks the conda env, ogr2ogr's Parquet driver, the gcloud / bq / gsutil sign-in, the
@@ -455,36 +472,36 @@ Exit codes: 0 OK · 1 error · 2 layout change · 3 nothing new to fetch · 4 di
 **What the agent will not do on its own** (it stops and asks): change a schema file or a script, edit a
 delivered `.load` file (embedded pipes), rebuild a snapshot that is already loaded, delete anything in GCS or
 BigQuery (Step 6 cleanup is never automatic), or commit to Git. The runbook it follows is
-`.claude/skills/monthly-build/SKILL.md`; change that file to change how the agent works.
+`build\.claude\skills\monthly-build\SKILL.md`; change that file to change how the agent works.
 
-**Guardrails** (enforced by Claude Code for every session opened in this repo, not just the agent):
+**Guardrails** (enforced by Claude Code in the build agent's home, and by the same guard at the repo root):
 
 | Layer | File | What it does |
 |---|---|---|
-| Runbook | `.claude/skills/monthly-build/SKILL.md` | Tells the agent when to stop and ask (followed by the model, not enforced) |
-| Permission rules | `.claude/settings.json` | Allow / ask / deny by how a command starts. Starts sessions in the ask-first mode; bypass mode is disabled; MCP connectors are denied |
-| Build guard hook | `.claude/hooks/build_guard.ps1` | Reads the whole command or file path before it runs and answers deny or ask (never allow) |
+| Runbook | `build/.claude/skills/monthly-build/SKILL.md` | Tells the agent when to stop and ask (followed by the model, not enforced). Its first step checks that the session is open on `build\` and that the guard is running |
+| Permission rules | `build/.claude/settings.json` (agent); `.claude/settings.json` (repo root) | Allow / ask / deny by how a command starts. Starts sessions in the ask-first mode; bypass mode is disabled; MCP connectors are denied. Only the agent's file lets the wrapper run without asking |
+| Build guard hook | `build/.claude/hooks/build_guard.ps1`, run from both settings files | Reads the whole command or file path before it runs and answers deny or ask (never allow). It finds `build\` and the repo from its own location, so the rules are the same whichever folder is open |
 
 Denied outright: deletes or moves in GCS and BigQuery (`gsutil rm/mv/rsync -d`, `gcloud storage rm/mv`,
 `bq rm/truncate`, `bq cp -f`, `bq load --replace` run directly); `bq query` with a statement that changes data
 or tables, or without `--maximum_bytes_billed`; `git push/commit/reset/clean/restore`, branch deletes,
-discarding checkouts; changes to `.claude/settings*.json` or `.claude/hooks/`; any write on the shared drive;
+discarding checkouts; changes to any `.claude/settings*.json` or `.claude/hooks/`; any write on the shared drive;
 deletes, moves or renames in the data folder, and file edits there outside the current delivery's month folder
 (the folder of the newest `delivery_<date>.json`); `gcloud` account, project or permission changes and printing
 tokens; environment variables, execution policy, registry and scheduled tasks.
 
 Asks first: `-AllowRebuild`; `gcloud auth login`; other `bq`/`gsutil`/`gcloud` writes; git branch switches,
-merges, stashes and staging; edits under `build/`, `schemas/` and `.claude/skills/`; Python, nested shells
+merges, stashes and staging; edits under `build/`, `schemas/` and any `.claude/skills/`; Python, nested shells
 (`cmd /c`, `pwsh -Command`, `Invoke-Expression`); installs (`pip`, `conda`, `winget`...); other deletes; web
 access.
 
 The guard matches words anywhere in a command, so a harmless command that only mentions a blocked one (for
 example `echo gsutil rm`) is also refused. If the guard itself fails, it asks rather than letting the call
 through. Every call it sees is logged with its decision in `<data_root>\_build_logs\agent_audit_<yyyyMMdd>.log`.
-To test it, pipe a payload in:
+To test it, pipe a payload in, from `build\`:
 `'{"tool_name":"PowerShell","tool_input":{"command":"bq rm -f d.t"},"cwd":"."}' | pwsh -NoProfile -File .claude/hooks/build_guard.ps1`.
 
-The first time Claude Code opens this repo it asks you to trust the folder; until you do, the `allow` rules
+The first time Claude Code opens `build\` it asks you to trust the folder; until you do, the `allow` rules
 are ignored (deny, ask and the hook still apply), so every wrapper step asks.
 
 **Two MC tables have no mining-claims rows** (`ACTION_CASE`, `SUPPLEMENTAL_USE` in 2026), so no MC files are

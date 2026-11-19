@@ -42,3 +42,6 @@ build/monthly_build.local.json
 web-app/tests/guard_pins.json
 web-app/.claude/settings.local.json
 web-app/Query_Results/
+# Build agent (build/ is its home): personal Claude Code settings and VS Code settings there
+build/.claude/settings.local.json
+build/.vscode/settings.json
