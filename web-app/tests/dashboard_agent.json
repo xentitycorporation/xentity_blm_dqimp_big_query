@@ -1,0 +1,7 @@
+{
+  "_comment": "Settings for the dashboard-update agent. ask_before_publish: true = the agent stops after the dry run and asks before overwriting the Portal tables; set it to false once you trust it. flag_percent / flag_min_rows: a change is flagged for a look (it is not a finding) when it is over flag_percent AND at least flag_min_rows rows or cases.",
+  "page": "mlrs_case_completeness",
+  "ask_before_publish": true,
+  "flag_percent": 10,
+  "flag_min_rows": 50
+}

@@ -1,0 +1,52 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "disableBypassPermissionsMode": "disable",
+    "disableAutoMode": "disable",
+    "allow": [
+      "Bash(./tests/run_dashboard.bat *)",
+      "PowerShell(& .\\tests\\run_dashboard.bat *)",
+      "Read(Query_Results/mlrs_case_completeness/*.md)",
+      "Read(Query_Results/mlrs_case_completeness/build_manifest.json)",
+      "Read(Query_Results/mlrs_case_completeness/agent_logs/*.log)",
+      "Read(Query_Results/mlrs_case_completeness/agent_history/*.json)",
+      "Write(Query_Results/mlrs_case_completeness/Dashboard_Update_Report_*.md)",
+      "Edit(Query_Results/mlrs_case_completeness/Dashboard_Update_Report_*.md)",
+      "Skill(dashboard-update)"
+    ],
+    "deny": [
+      "Bash(*--create*)", "PowerShell(*--create*)",
+      "Bash(*run_dashboard.bat pin*)", "PowerShell(*run_dashboard.bat pin*)",
+      "Bash(*run_dashboard.bat display*)", "PowerShell(*run_dashboard.bat display*)",
+      "Bash(*dqimp_webapp*)", "PowerShell(*dqimp_webapp*)",
+      "Bash(*verify_cert*)", "PowerShell(*verify_cert*)",
+      "Bash(git *)", "PowerShell(git *)",
+      "Read(tests/**)", "Edit(tests/**)", "Write(tests/**)",
+      "Read(.claude/**)", "Edit(.claude/**)", "Write(.claude/**)",
+      "Edit(CLAUDE.md)", "Write(CLAUDE.md)",
+      "Read(Query_Results/**/*.csv)", "Edit(Query_Results/**/*.csv)", "Write(Query_Results/**/*.csv)",
+      "Read(~/.claude/**)", "Edit(~/.claude/**)", "Write(~/.claude/**)",
+      "Read(~/AppData/**)", "Edit(~/AppData/**)", "Write(~/AppData/**)",
+      "Read(~/.ssh/**)", "Read(~/.config/**)", "Read(~/.gitconfig)",
+      "WebFetch", "WebSearch", "Agent", "NotebookEdit", "TaskStop", "Monitor",
+      "EnterPlanMode", "ExitPlanMode", "Workflow",
+      "mcp__*"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "\"$LOCALAPPDATA/ESRI/conda/envs/arcgispro_clone/python.exe\" -I \"$CLAUDE_PROJECT_DIR/.claude/hooks/dashboard_guard.py\"",
+            "timeout": 30,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}

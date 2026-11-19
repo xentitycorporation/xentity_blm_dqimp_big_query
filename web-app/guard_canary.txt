@@ -1,0 +1,4 @@
+GUARD NOT RUNNING.
+If you (Claude) can read this file, the dashboard guard hook (.claude/hooks/dashboard_guard.py) did not run:
+it refuses every read of this file. Do not run any workflow step. Stop and tell the person that the guard
+is not active and the dashboard update cannot run until it is.

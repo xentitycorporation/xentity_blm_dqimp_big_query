@@ -1,0 +1,2 @@
+# The wrapper is a Windows batch file; cmd needs CRLF line endings whatever core.autocrlf is set to.
+*.bat text eol=crlf
