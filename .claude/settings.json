@@ -3,8 +3,6 @@
     "defaultMode": "default",
     "disableBypassPermissionsMode": "disable",
     "allow": [
-      "PowerShell(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 *)",
-      "Bash(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 *)",
       "Bash(bq ls *)",
       "Bash(bq show *)",
       "PowerShell(bq ls *)",
@@ -27,9 +25,10 @@
     "ask": [
       "Edit(schemas/**)",
       "Edit(build/**)",
-      "Edit(.claude/skills/**)",
-      "PowerShell(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 * -AllowRebuild*)",
-      "Bash(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 * -AllowRebuild*)",
+      "Edit(**/.claude/skills/**)",
+      "Edit(web-app/**)",
+      "PowerShell(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 *)",
+      "Bash(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 *)",
       "Bash(gcloud auth login *)",
       "PowerShell(gcloud auth login *)",
       "Bash(git checkout *)", "Bash(git switch *)", "Bash(git merge *)", "Bash(git rebase *)",
@@ -50,9 +49,9 @@
       "Bash(gcloud auth application-default *)", "Bash(gcloud auth print-access-token *)",
       "PowerShell(gcloud config set *)", "PowerShell(gcloud auth revoke *)", "PowerShell(gcloud auth activate-service-account *)",
       "PowerShell(gcloud auth application-default *)", "PowerShell(gcloud auth print-access-token *)",
-      "Edit(.claude/settings.json)",
-      "Edit(.claude/settings.local.json)",
-      "Edit(.claude/hooks/**)",
+      "Edit(**/.claude/settings.json)",
+      "Edit(**/.claude/settings.local.json)",
+      "Edit(**/.claude/hooks/**)",
       "Edit(//g/**)",
       "mcp__*"
     ]
@@ -65,7 +64,7 @@
           {
             "type": "command",
             "command": "pwsh",
-            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/build_guard.ps1"],
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${CLAUDE_PROJECT_DIR}/build/.claude/hooks/build_guard.ps1"],
             "timeout": 30
           }
         ]

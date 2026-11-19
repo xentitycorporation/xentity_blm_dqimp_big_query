@@ -47,3 +47,15 @@ https://docs.google.com/spreadsheets/d/1AJM-F8Kl3tAOzUNnSwJgz-GOXg0qbThO/edit?gi
 MLRS to NLSDB crosswalk on gDrive 
 https://docs.google.com/spreadsheets/d/1IRthu0qUj1q2vpY70DAbRBwJDnhRHYgf9eY3Q2tmSo0/edit?gid=0#gid=0
 
+## Agents
+Each recurring process that a Claude Code agent runs lives in its own folder, which is that agent's home:
+
+| Agent | Home folder | Start it | Setup and guardrails |
+|---|---|---|---|
+| Monthly build (`/monthly-build`) | `build/` | Open `build/` in VS Code, then type `/monthly-build` in the Claude Code panel | [build/README_build.md](build/README_build.md), "Automated run" |
+| Dashboard update (`/dashboard-update`) | `web-app/` | Deployed to the BLM computer and opened there on its own | [web-app/README_dashboard_agent.md](web-app/README_dashboard_agent.md) |
+
+An agent's home holds its own `.claude/` folder (permission rules, guard hook, runbook skill) and, where it needs one, a `CLAUDE.md` and `.vscode/tasks.json`. Claude Code and VS Code read these only when that folder is the one open, so each agent's rules apply only to its own work. Open the folder itself, not the repo root, to run an agent. A new agent gets a new home folder the same way.
+
+The repo root's `.claude/settings.json` is for general work in the whole repo: it denies commits, pushes, cloud deletes, connectors and edits to any agent's settings or hooks, and runs the build guard. It holds no agent of its own.
+

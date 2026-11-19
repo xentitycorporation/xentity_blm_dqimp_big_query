@@ -6,7 +6,7 @@ argument-hint: "[YYYYMMDD of the MLRS Full zip, optional]"
 
 # Monthly build agent
 
-You run the monthly build that `build/README_build.md` documents, from start to finish, without
+You run the monthly build that `README_build.md` (in this folder) documents, from start to finish, without
 asking the person who started you anything **unless a rule below says to stop**. They expect to
 type `/monthly-build` and come back to a finished load and a report.
 
@@ -16,10 +16,12 @@ the schema files or BLM's data to get past a problem: you stop and explain.
 
 ## How to run each step
 
-Every step is one call to the wrapper, from the repo root, with the **PowerShell** tool:
+This agent's home is the repo's `build/` folder: the session must be opened on that folder, not
+on the repo root. Every step is one call to the wrapper, from this folder, with the **PowerShell**
+tool:
 
 ```
-pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 -Step <step> [-Date YYYYMMDD] [-CheckOnly]
+pwsh -NoProfile -ExecutionPolicy Bypass -File ./run_build.ps1 -Step <step> [-Date YYYYMMDD] [-CheckOnly]
 ```
 
 - It activates the `dev` conda env, writes a log (its path is the first line printed) and exits
@@ -27,8 +29,9 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 -Step <step> [
 - **fetch, prepare and load are long** (copying ~7.5 GB from Google Drive; tar extraction and
   layout checks 1–3 hours; BigQuery loads 30–60 minutes). Run them with `run_in_background`
   and wait for the completion notice. Do not poll and do not sleep.
-- Machine paths come from `build/monthly_build.local.json` (git-ignored). If it is missing,
-  stop and say: copy `build/monthly_build.example.json` to that name and fill it in.
+- Machine paths come from `monthly_build.local.json` in this folder (git-ignored). If it is
+  missing, stop and say: copy `monthly_build.example.json` to that name and fill it in.
+- The schema files are in `../schemas/`, outside this folder.
 
 Exit codes: 0 OK · 1 error · 2 layout change · 3 nothing new · 4 disk space · 5 needs a person ·
 6 verify flags.
@@ -37,6 +40,18 @@ Exit codes: 0 OK · 1 error · 2 layout change · 3 nothing new · 4 disk space 
 
 Track the steps with your task list. Note each step's start time, end time, exit code and log
 path for the report.
+
+### 0. Check the home and the guard (before anything else)
+1. Use **Glob** with the pattern `run_build.ps1` and no path. If it is not found in the folder
+   you are working in, this session is not open on the `build/` folder. **Stop** and tell the
+   person to open `...\xentity_blm_dqimp_big_query\build` in VS Code (File → Open Folder) and
+   start again. Do not run any step from another folder.
+2. Run exactly this with the **PowerShell** tool:
+   `Write-Output 'build guard self-test: gsutil rm gs://guard-self-test/none'`
+   It only prints text, but the build guard refuses any command that names `gsutil rm`.
+   **It must be refused with a message starting `Build guard`.** If it runs, or is stopped any
+   other way (for example a permission prompt), the guard is not running in this session:
+   **stop**, tell the person, and run no step.
 
 ### 1. Preflight — `-Step preflight`
 - Exit 0: continue. Note the `INFO` line (branch, uncommitted changes).
@@ -56,7 +71,7 @@ path for the report.
 
 ### 3. Layout checks without upload — `-Step prepare -Date <d> -CheckOnly` (background)
 - Exit 2 — **BLM changed a layout. Stop.** Quote the `STOPPED` block. Then read the "Layout
-  Change Log" section of `build/README_build.md` and say whether this change is one it already
+  Change Log" section of `README_build.md` and say whether this change is one it already
   expects (with the steps it lists) or a new one. Do not edit any schema file: changing the
   expected layout is the person's decision, made only once the delivery confirms the change.
   If they then ask you to make the documented change, follow the change log's steps exactly,
@@ -97,7 +112,7 @@ Write `Build_Report_<d>.md` in the month folder (see the template below), then t
 a few lines: loaded or not, where the report is, and anything that needs them.
 
 ## Always stop and ask before
-- changing any file under `schemas/` or `build/`, or any delivered BLM file;
+- changing any file under `../schemas/` or in this `build/` folder, or any delivered BLM file;
 - building a snapshot that is already in BigQuery (fetch reports it; `--allow-rebuild` only on a yes);
 - deleting anything in GCS or BigQuery. **GCS cleanup (README Step 6) is never part of this
   run**: the `.load` files are kept until the person decides to remove them;
@@ -105,13 +120,13 @@ a few lines: loaded or not, where the report is, and anything that needs them.
 - anything not in this runbook.
 
 ## Guardrails you will run into
-A hook (`.claude/hooks/build_guard.ps1`) checks every command and file edit before it runs, and
-`.claude/settings.json` holds the allow / ask / deny rules. When a call is refused, the message
+A hook (`.claude/hooks/build_guard.ps1` in this folder) checks every command and file edit before
+it runs, and `.claude/settings.json` holds the allow / ask / deny rules. When a call is refused, the message
 starts with `Build guard` and says why. Do not look for another way to do the same thing: if the
 step needs it, stop and ask the person. In particular:
 - write files in the data folder only inside the current delivery's month folder, and never
   delete, move or rename anything there or on the shared drive;
-- run only the wrapper (`build/run_build.ps1`) for build work; Python, nested shells and
+- run only the wrapper (`./run_build.ps1`) for build work; Python, nested shells and
   installs ask the person first;
 - never change `.claude/settings*.json` or `.claude/hooks/`: those are the person's.
 

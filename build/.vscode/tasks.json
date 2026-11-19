@@ -1,0 +1,134 @@
+{
+  // VS Code tasks for the monthly build: one task per step, all through run_build.ps1.
+  // OPEN THIS build/ FOLDER AS THE WORKSPACE (File > Open Folder > .../xentity_blm_dqimp_big_query/build).
+  // It is the build agent's home: Claude Code reads the agent's settings, guard hook and skill from
+  // build/.claude/ only when this folder is the one open. The BigQuery SQL tasks stay in the
+  // repo root's .vscode/tasks.json.
+  "version": "2.0.0",
+  "presentation": {
+    "reveal": "always",
+    "panel": "dedicated",
+    "clear": true
+  },
+  "tasks": [
+    // ------------------------------------------------------------------------------------
+    // MONTHLY BUILD (November 2026). One task per step of README_build.md, all through
+    // run_build.ps1, which activates the dev conda env and logs to the month folder.
+    // The same steps run end to end, unattended, with the Claude Code skill
+    // .claude/skills/monthly-build in this folder (type /monthly-build in the Claude Code panel).
+    // Needs monthly_build.local.json in this folder (copy monthly_build.example.json).
+    // ------------------------------------------------------------------------------------
+    {
+      "label": "Build 0: Preflight (tools, sign-ins, folders, disk)",
+      "detail": "Checks the dev conda env, gcloud/bq/gsutil sign-in, the shared drop folders and free disk space. Changes nothing.",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/run_build.ps1",
+        "-Step",
+        "preflight"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Build 1: Fetch next delivery from the shared folders",
+      "detail": "Copies the oldest delivery not yet in BigQuery into its month folder and writes delivery_<date>.json.",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/run_build.ps1",
+        "-Step",
+        "fetch"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Build 2: Prepare - layout checks only (no upload)",
+      "detail": "prepare_snapshot.py --check-only in the month folder: unzip, Parquet, tar extraction, layout checks.",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/run_build.ps1",
+        "-Step",
+        "prepare",
+        "-Date",
+        "${input:snapshotDate}",
+        "-CheckOnly"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Build 3: Prepare - upload to GCS",
+      "detail": "prepare_snapshot.py: the same checks, then the upload to gs://.../snapshots/<date>/.",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/run_build.ps1",
+        "-Step",
+        "prepare",
+        "-Date",
+        "${input:snapshotDate}"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Build 4: Load BigQuery",
+      "detail": "BLM_DQIMP_OneStop_param_v4.ps1 -NoPause: pre-flight checks, then every table load.",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/run_build.ps1",
+        "-Step",
+        "load",
+        "-Date",
+        "${input:snapshotDate}"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Build 5: Verify against the previous snapshot",
+      "detail": "verify_snapshot.py: row counts, real cases and latest dates vs the prior snapshot; writes verify_<date>.md.",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/run_build.ps1",
+        "-Step",
+        "verify",
+        "-Date",
+        "${input:snapshotDate}"
+      ],
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "snapshotDate",
+      "type": "promptString",
+      "description": "Snapshot date, YYYYMMDD (printed by Build 1: Fetch)"
+    }
+  ]
+}

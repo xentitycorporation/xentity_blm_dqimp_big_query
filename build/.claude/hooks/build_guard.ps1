@@ -1,8 +1,14 @@
 <#
-build_guard.ps1 - PreToolUse hook for Claude Code sessions in this repo (see .claude/settings.json).
+build_guard.ps1 - PreToolUse hook for the build agent and for Claude Code sessions at the repo root.
+
+It lives in the build agent's home (build/.claude/) and runs from two settings files:
+  build/.claude/settings.json  - sessions opened on the build/ folder (the build agent)
+  .claude/settings.json        - sessions opened on the repo root (general development)
+It finds the build folder and the repo from its own location, not from the folder Claude Code
+opened, so the same rules apply in both.
 
 Claude Code runs this before every shell command (Bash, PowerShell) and every file edit (Edit,
-Write, NotebookEdit) that Claude makes in this repo. The deny/ask rules in settings.json only
+Write, NotebookEdit) that Claude makes. The deny/ask rules in settings.json only
 match the START of a command; this script reads the whole command, so it also catches a
 dangerous word in the middle (a DROP TABLE inside "bq query", a delete wrapped in "cmd /c").
 
@@ -18,7 +24,7 @@ from build/monthly_build.local.json) with the decision: a record of what the age
 If this script fails, it answers "ask", so a broken guard stops for you instead of letting
 calls through.
 
-Test by piping a hook payload in, for example:
+Test by piping a hook payload in, from the build folder, for example:
   '{"tool_name":"PowerShell","tool_input":{"command":"bq rm -f x.y"},"cwd":"."}' |
       pwsh -NoProfile -File .claude/hooks/build_guard.ps1
 #>
@@ -52,12 +58,26 @@ try {
     $sessionId = [string]$in.session_id
     $cwd = if ($in.cwd) { [string]$in.cwd } else { (Get-Location).Path }
 
-    $proj = if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { Split-Path (Split-Path $PSScriptRoot -Parent) -Parent }
-    $projN = Norm $proj
+    # Folders from this script's own location (<repo>/build/.claude/hooks), whichever folder
+    # Claude Code opened: the build folder (the build agent's home) or the repo root.
+    $buildDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+    $repoDir = Split-Path $buildDir -Parent
+    $buildN = (Norm $buildDir).TrimEnd('/')
+    $repoN = (Norm $repoDir).TrimEnd('/')
+    $cwdN = (Norm $cwd).TrimEnd('/')
+
+    # How the wrapper and the build's Python scripts may be named: by full path always; as
+    # build/<name> from the repo root; as ./<name> or <name> from the build folder.
+    $prefixes = @([regex]::Escape($buildN + '/'))
+    if ($cwdN -eq $repoN) { $prefixes += 'build/', '\./build/' }
+    if ($cwdN -eq $buildN) { $prefixes += '\./', '' }
+    $pre = '(?:' + ($prefixes -join '|') + ')'
+    $wrapRx = $pre + 'run_build\.ps1\b'
+    $pyRx = $pre + '(fetch_delivery|verify_snapshot|prepare_snapshot)\.py\b'
 
     # ---- machine paths (git-ignored config) ----
     $dataN = ''; $drives = @(); $currentN = ''
-    $cfgPath = Join-Path $proj 'build/monthly_build.local.json'
+    $cfgPath = Join-Path $buildDir 'monthly_build.local.json'
     if (Test-Path $cfgPath) {
         $cfg = Get-Content -Raw $cfgPath | ConvertFrom-Json
         if ($cfg.data_root) {
@@ -184,17 +204,22 @@ try {
         }
         if ($deletes -and -not $decision) { Flag 'ask' 'deletes, moves or renames files' }
 
-        # scripts and schemas edited from the shell (Edit/Write to them already ask)
-        if ($writes -and $ns -match '(^|[\s"''/])(build|schemas)/' -and $ns -notmatch '^\s*pwsh\s+-noprofile\s+-executionpolicy\s+bypass\s+-file\s+build/run_build\.ps1\b[^|;&>]*$') {
+        # scripts and schemas edited from the shell (Edit/Write to them already ask). In the build
+        # folder a relative path names no folder, so any write there that is not in the data
+        # folder asks too.
+        $isWrapper = $ns -match ('^\s*pwsh\s+-noprofile\s+-executionpolicy\s+bypass\s+-file\s+' + $wrapRx + '[^|;&>]*$')
+        $inBuild = Under $cwdN $buildN
+        if ($writes -and -not $isWrapper -and
+            ($ns -match '(^|[\s"''/])(build|schemas)/' -or ($inBuild -and -not ($dataN -and $ns.Contains($dataN))))) {
             Flag 'ask' 'may write under build/ or schemas/'
         }
 
         # ---------- code the guard cannot read ----------
-        if ($ns -match '(^|[\s;&|(])(python3?|python\.exe|py|conda\s+run)\b' -and $ns -notmatch '(^|[\s;&|(])python3?(\.exe)?\s+(-u\s+)?build/(fetch_delivery|verify_snapshot|prepare_snapshot)\.py\b') {
+        if ($ns -match '(^|[\s;&|(])(python3?|python\.exe|py|conda\s+run)\b' -and $ns -notmatch ('(^|[\s;&|(])python3?(\.exe)?\s+(-u\s+)?' + $pyRx)) {
             Flag 'ask' 'runs Python code the guard cannot check'
         }
         if ($ns -match '\b(pwsh|powershell)(\.exe)?\s+[^|;&]*-(c|command|e|ec|encodedcommand)\b' -or
-            ($ns -match '\b(pwsh|powershell)(\.exe)?\s+[^|;&]*-file\s+' -and $ns -notmatch '-file\s+build/run_build\.ps1\b') -or
+            ($ns -match '\b(pwsh|powershell)(\.exe)?\s+[^|;&]*-file\s+' -and $ns -notmatch ('-file\s+' + $wrapRx)) -or
             $ns -match '\bcmd(\.exe)?\s+/[ck]\b|\b(invoke-expression|iex|start-process|saps|invoke-command|icm|start-job)\b|\b(bash|sh|wsl)(\.exe)?\s+-c\b') {
             Flag 'ask' 'runs a nested shell or script the guard cannot check'
         }
@@ -215,8 +240,8 @@ try {
         $pn = Norm $fp
         foreach ($d in $drives) { if ($pn.StartsWith($d)) { Flag 'deny' "file edit on the shared drive ($($d.ToUpper()))" } }
         if ($pn -match '/\.claude/(settings[^/]*\.json|hooks/)') { Flag 'deny' 'edit to Claude Code settings or hooks (change these yourself)' }
-        elseif (Under $pn ($projN + '/.claude')) { Flag 'ask' 'edit to a file under .claude/ (the build runbook)' }
-        if ((Under $pn ($projN + '/build')) -or (Under $pn ($projN + '/schemas'))) { Flag 'ask' 'edit to a build script or schema file' }
+        elseif ($pn -match '/\.claude/') { Flag 'ask' 'edit to a file under .claude/ (an agent runbook)' }
+        if ((Under $pn $buildN) -or (Under $pn ($repoN + '/schemas'))) { Flag 'ask' 'edit to a build script or schema file' }
         if ($dataN -and (Under $pn $dataN)) {
             if (-not $currentN) { Flag 'deny' 'file edit in the data folder before any delivery has been fetched' }
             elseif (-not (Under $pn $currentN)) { Flag 'deny' "file edit in the data folder outside the current delivery's folder ($currentN)" }
@@ -242,7 +267,7 @@ if ($decision) {
     @{ hookSpecificOutput = @{
             hookEventName            = 'PreToolUse'
             permissionDecision       = $decision
-            permissionDecisionReason = 'Build guard (.claude/hooks/build_guard.ps1): ' + ($reasons -join '; ')
+            permissionDecisionReason = 'Build guard (build/.claude/hooks/build_guard.ps1): ' + ($reasons -join '; ')
         } } | ConvertTo-Json -Compress -Depth 4
 }
 exit 0
