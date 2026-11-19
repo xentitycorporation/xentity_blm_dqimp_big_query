@@ -1,0 +1,7 @@
+# Line endings for everyone, whatever their core.autocrlf setting: Git stores text files with LF
+# and checks them out in each platform's own style. Git detects binary files itself.
+* text=auto
+
+# Windows batch files keep CRLF on every platform (cmd misreads batch files with LF only).
+*.bat text eol=crlf
+*.cmd text eol=crlf

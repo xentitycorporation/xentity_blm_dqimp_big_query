@@ -65,7 +65,8 @@
             "type": "command",
             "command": "pwsh",
             "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${CLAUDE_PROJECT_DIR}/build/.claude/hooks/build_guard.ps1"],
-            "timeout": 30
+            "timeout": 30,
+            "onFailure": "block"
           }
         ]
       }

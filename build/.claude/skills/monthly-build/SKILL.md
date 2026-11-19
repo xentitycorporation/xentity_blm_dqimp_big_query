@@ -1,7 +1,9 @@
 ---
 name: monthly-build
-description: Run the BLM DQIMP monthly snapshot build end to end — fetch the newest MLRS/NLSDB delivery from the shared folders, run the layout checks, upload to GCS, load BigQuery, verify against the previous snapshot, and write a build report. Use when asked to run, do or continue the monthly build or load a new delivery, or on /monthly-build.
+description: Runs the BLM DQIMP monthly snapshot build end to end — fetches the newest MLRS/NLSDB delivery from the shared folders, runs the layout checks, uploads to GCS, loads BigQuery, verifies against the previous snapshot, and writes a build report. Run by the person typing /monthly-build.
 argument-hint: "[YYYYMMDD of the MLRS Full zip, optional]"
+# Uploads and BigQuery loads change shared data, so only the person starts this skill (by typing /monthly-build).
+disable-model-invocation: true
 ---
 
 # Monthly build agent

@@ -2,6 +2,7 @@
   "permissions": {
     "defaultMode": "default",
     "disableBypassPermissionsMode": "disable",
+    "disableAutoMode": "disable",
     "allow": [
       "PowerShell(pwsh -NoProfile -ExecutionPolicy Bypass -File ./run_build.ps1 *)",
       "Bash(pwsh -NoProfile -ExecutionPolicy Bypass -File ./run_build.ps1 *)",
@@ -64,7 +65,8 @@
             "type": "command",
             "command": "pwsh",
             "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/build_guard.ps1"],
-            "timeout": 30
+            "timeout": 30,
+            "onFailure": "block"
           }
         ]
       }

@@ -1,7 +1,9 @@
 ---
 name: dashboard-update
-description: Update the MLRS Case Completeness dashboard in the BLM HQ Portal with the newest monthly snapshot — find the snapshot in BigQuery, add it to the page's list, build the four tables, compare with last month, overwrite the hosted tables in place, check them in the Portal, and write a report. Use when asked to update, refresh or publish the dashboard / web app / Web Experience tables for a new month, or on /dashboard-update.
+description: Updates the MLRS Case Completeness dashboard in the BLM HQ Portal with the newest monthly snapshot — finds the snapshot in BigQuery, adds it to the page's list, builds the four tables, compares them with last month, overwrites the hosted tables in place, checks them in the Portal, and writes a report. Run by the person typing /dashboard-update.
 argument-hint: "[YYYYMMDD snapshot, optional]"
+# Publishing changes the BLM HQ Portal, so only the person starts this skill (by typing /dashboard-update).
+disable-model-invocation: true
 ---
 
 # Dashboard update agent
