@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy to monthly_build.local.json (git-ignored) and replace each <...> with this machine's path, writing every backslash twice. data_root holds one folder per delivery; mlrs_drop and nlsdb_drop are the shared folders the zips are uploaded to; conda_root/conda_env give the env with ogr2ogr (Parquet + GEOS) and fiona.",
+  "data_root": "<folder that holds one folder per delivery>",
+  "mlrs_drop": "<shared folder with the MLRS Full and MC zips>",
+  "nlsdb_drop": "<shared folder with the NLSDB .gdb zips>",
+  "conda_root": "<conda install folder>",
+  "conda_env": "dev"
+}

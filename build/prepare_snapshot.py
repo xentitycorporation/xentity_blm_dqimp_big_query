@@ -631,6 +631,7 @@ def upload_load_files(folder, gcs_prefix):
     {gcs_prefix}/{table_name}/ so BQ wildcard loads match exactly the right
     table without cross-table name prefix collisions (e.g. ACTION vs ACTION_CASE).
     Empty files (0 bytes) represent states with no records and are skipped.
+    Returns the number of tables whose upload failed (0 = all uploaded).
     """
     state_dirs = sorted(
         d for d in glob.glob(os.path.join(folder, '*')) if os.path.isdir(d)
@@ -648,17 +649,21 @@ def upload_load_files(folder, gcs_prefix):
 
     if not by_table:
         print(f'  WARNING: no non-empty .load files found under {folder}')
-        return
+        return 1
 
+    failed = 0
     for tname, tfiles in sorted(by_table.items()):
-        run_cmd(
+        rc = run_cmd(
             ['gsutil', '-o', 'GSUtil:check_hashes=always', '-m', 'cp'] + tfiles + [f'{gcs_prefix}/{tname}/'],
             f'upload {tname} ({len(tfiles)} files)'
         )
+        if rc != 0:
+            failed += 1
 
     if total_skipped:
         print(f'  Skipped {total_skipped} empty .load files (states with no records)')
     print(f'  Total uploaded: {sum(len(v) for v in by_table.values())} files')
+    return failed
 
 
 # ---------------------------------------------------------------------------
@@ -770,8 +775,13 @@ def main():
     print(f'\n{"="*60}')
     print(f'[5/5] Uploading .load files and Parquet files to GCS: {gcs_prefix}')
     print(f'{"="*60}')
-    upload_load_files(full_dir, gcs_prefix)
-    upload_load_files(mc_dir, gcs_prefix)
+    # A failed table upload used to be reported and then ignored, so the PS1 could load a
+    # table with a state missing. Stop instead (November 2026).
+    failed = upload_load_files(full_dir, gcs_prefix) + upload_load_files(mc_dir, gcs_prefix)
+    if failed:
+        print(f'  ERROR: {failed} .load upload(s) failed (see the WARNING lines above).')
+        print(f'  Re-run this script; finished steps are skipped and the uploads are repeated. Aborting.')
+        sys.exit(1)
     rc1 = run_cmd(['gsutil', '-o', 'GSUtil:check_hashes=always', 'cp', parquets['Case'],      f'{gcs_prefix}/{parquets["Case"]}'],      f'upload {parquets["Case"]}')
     rc2 = run_cmd(['gsutil', '-o', 'GSUtil:check_hashes=always', 'cp', parquets['CaseLands'], f'{gcs_prefix}/{parquets["CaseLands"]}'], f'upload {parquets["CaseLands"]}')
     if rc1 != 0 or rc2 != 0:

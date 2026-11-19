@@ -361,7 +361,11 @@ consume. That document is authoritative for the upstream half; `MLRS_Database_Qu
 | File | Language | Purpose |
 |---|---|---|
 | `prepare_snapshot.py` | Python | Steps 1–4: unzip inputs, extract tars, upload raw per-state `.load` files to GCS, convert GDB to Parquet and upload |
-| `BLM_DQIMP_OneStop_param_v4.ps1` | PowerShell | Step 5: wildcard BQ load (CR_FULL create, then MC append) for all 24 MLRS tables + 2 NLSDB Parquet tables. GCS cleanup is **manual** (see Step 6) |
+| `BLM_DQIMP_OneStop_param_v4.ps1` | PowerShell | Step 5: wildcard BQ load (CR_FULL create, then MC append) for all 24 MLRS tables + 2 NLSDB Parquet tables. GCS cleanup is **manual** (see Step 6). `-NoPause` for unattended runs; exit 1 if any load step failed |
+| `run_build.ps1` | PowerShell | One entry point per step (`-Step preflight / fetch / prepare / load / verify`) for the VS Code tasks and the build agent: activates the conda env, logs to the month folder, passes exit codes through. See "Automated run" below |
+| `fetch_delivery.py` | Python | Finds the next delivery in the shared drop folders, copies its three zips into the month folder, reads the tar dates inside them, writes `delivery_<date>.json` |
+| `verify_snapshot.py` | Python | Step 5 verification: row counts of all 26 tables, real cases and parsed latest dates vs the previous snapshot; writes `verify_<date>.md` |
+| `monthly_build.example.json` | JSON | Template for `monthly_build.local.json` (git-ignored): this machine's data folder, shared drop folders and conda env |
 | `prepare_snapshot_public_extract.py` | Python | Same as `prepare_snapshot.py` but handles NLSDB public extract GDB (different zip/GDB naming, lowercase layer names) and splits the Case layer into `Case_<date>.parquet` (Status Records excluded) + `StatusRecords_<date>.parquet` (Status Records only). **Does NOT pull from the API** — reads a GDB produced by the upstream pipeline. |
 | `BLM_DQIMP_OneStop_param_v4_public_extract.ps1` | PowerShell | Same as standard PS1 but with public extract column schemas, epoch-ms→TIMESTAMP date conversion in the CTAS step, and a third NLSDB load: `StatusRecords_<date>.parquet` → `nlsdb_status_records_<date>` |
 | `Public_Extract_Specific\README_Public_Extract_build.md` | Markdown | End-to-end SOP for the public-extract fallback: preflight, extraction, merge, GDB conversion, validation gates, load. Authoritative for everything upstream of the GDB |
@@ -411,6 +415,52 @@ against the scripts 2026-08-10.
 ---
 
 ## Monthly Workflow (Standard Operating Procedure)
+
+### Automated run: VS Code tasks and the build agent (November 2026)
+
+The steps below can be run three ways. All three run the same scripts.
+
+| Way | How | When |
+|---|---|---|
+| **Build agent** | Open this repo in VS Code, open the Claude Code panel, type `/monthly-build` | Normal months. Runs every step, stops only when a person must decide, writes `Build_Report_<date>.md` in the month folder |
+| **VS Code tasks** | `Ctrl+Shift+P` → *Tasks: Run Task* → `Build 0` … `Build 5` | Running or re-running one step by hand |
+| **By hand** | The PowerShell commands in Steps 1–6 below | Troubleshooting |
+
+**One-time setup per machine**
+1. Copy `build\monthly_build.example.json` to `build\monthly_build.local.json` (git-ignored) and set
+   `data_root` (the folder holding one folder per delivery), `mlrs_drop` and `nlsdb_drop` (the shared
+   folders BLM's zips are uploaded to), and `conda_root` / `conda_env` (the env from Prerequisites).
+2. PowerShell 7 (`pwsh`) must be installed; the tasks, the agent and the load step run with it.
+   `BLM_DQIMP_OneStop_param_v4.ps1` is saved as UTF-8 **with a byte-order mark**: without one, Windows
+   PowerShell 5.1 misreads its em dashes and the script does not parse. Keep the BOM when editing it.
+3. For the agent: give Claude Code access to the data and drop folders in `.claude\settings.local.json`
+   (git-ignored) under `permissions.additionalDirectories`.
+
+**What `run_build.ps1` adds to the manual steps**
+- `-Step preflight` checks the conda env, ogr2ogr's Parquet driver, the gcloud / bq / gsutil sign-in, the
+  shared folders and free disk space (about 84 GB per delivery once unpacked; it requires 120 GB).
+- `-Step fetch` replaces Steps 1–2. It pairs each MLRS Full zip with its MC zip (same date, or up to 3 days
+  later) and the nearest NLSDB zip (within 10 days), picks the oldest delivery newer than the newest
+  `blm_case_<date>` table, and copies it to `<data_root>\<Month>_<Year>\`. A second delivery in the same
+  month goes to `<Month>_<Year>_<YYYYMMDD>\`. The snapshot date comes from the **tar names inside the zip**,
+  not the zip label. It stops (exit 5) for anything a person should look at: a missing state, an NLSDB
+  zip dated before the MLRS zip, or a snapshot already in BigQuery.
+- `-Step prepare` and `-Step load` run the two scripts with `-CheckOnly` available, in the month folder.
+- `-Step verify` runs Step 5 against the previous snapshot and writes `verify_<date>.md`.
+- Every step writes a log: `<month folder>\build_logs\` (preflight and fetch: `<data_root>\_build_logs\`).
+
+Exit codes: 0 OK · 1 error · 2 layout change · 3 nothing new to fetch · 4 disk space · 5 needs a person ·
+6 verify flags.
+
+**What the agent will not do on its own** (it stops and asks): change a schema file or a script, edit a
+delivered `.load` file (embedded pipes), rebuild a snapshot that is already loaded, delete anything in GCS or
+BigQuery (Step 6 cleanup is never automatic), or commit to Git. `.claude/settings.json` enforces the deletes
+and Git as hard blocks and asks before any edit under `build/` or `schemas/`. The runbook it follows is
+`.claude/skills/monthly-build/SKILL.md`; change that file to change how the agent works.
+
+**Two MC tables have no mining-claims rows** (`ACTION_CASE`, `SUPPLEMENTAL_USE` in 2026), so no MC files are
+uploaded for them. The PS1 now prints `SKIP: bq load MC <table>` for those instead of a failed append, so a
+`WARNING` line always means a real failure.
 
 > **All commands below are PowerShell.** Run them in a PowerShell terminal (not Command Prompt).
 > If you see an error about script execution policy, run this first:
