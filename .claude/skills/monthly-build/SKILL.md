@@ -84,8 +84,10 @@ path for the report.
 
 ### 6. Verify — `-Step verify -Date <d>`
 - Writes `verify_<d>.md` in the month folder. Exit 0: no flags. Exit 6: flags.
-- For each flag, find out what changed with small read-only queries (`bq query`, standard SQL),
-  e.g. which codes are new in a lookup table, or which states a row-count drop is in. Select
+- For each flag, find out what changed with small read-only queries, e.g. which codes are new in
+  a lookup table, or which states a row-count drop is in. Always run them as
+  `bq query --use_legacy_sql=false --maximum_bytes_billed=10000000000 "<SQL>"`: the build guard
+  refuses a query without the cost cap, and any statement that changes data or tables. Select
   only the columns you need, and never `SELECT *` on the large tables (`case_action`,
   `admin_unit`, `case_land`, `blm_case`, the NLSDB tables). Report what the data shows, with the
   query. A flag is a prompt to look, not a finding: do not call anything an error.
@@ -101,6 +103,17 @@ a few lines: loaded or not, where the report is, and anything that needs them.
   run**: the `.load` files are kept until the person decides to remove them;
 - `git commit`, `git push`, or switching branches;
 - anything not in this runbook.
+
+## Guardrails you will run into
+A hook (`.claude/hooks/build_guard.ps1`) checks every command and file edit before it runs, and
+`.claude/settings.json` holds the allow / ask / deny rules. When a call is refused, the message
+starts with `Build guard` and says why. Do not look for another way to do the same thing: if the
+step needs it, stop and ask the person. In particular:
+- write files in the data folder only inside the current delivery's month folder, and never
+  delete, move or rename anything there or on the shared drive;
+- run only the wrapper (`build/run_build.ps1`) for build work; Python, nested shells and
+  installs ask the person first;
+- never change `.claude/settings*.json` or `.claude/hooks/`: those are the person's.
 
 ## Report template — `Build_Report_<d>.md`
 

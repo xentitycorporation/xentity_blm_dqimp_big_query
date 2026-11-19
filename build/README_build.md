@@ -454,9 +454,38 @@ Exit codes: 0 OK · 1 error · 2 layout change · 3 nothing new to fetch · 4 di
 
 **What the agent will not do on its own** (it stops and asks): change a schema file or a script, edit a
 delivered `.load` file (embedded pipes), rebuild a snapshot that is already loaded, delete anything in GCS or
-BigQuery (Step 6 cleanup is never automatic), or commit to Git. `.claude/settings.json` enforces the deletes
-and Git as hard blocks and asks before any edit under `build/` or `schemas/`. The runbook it follows is
+BigQuery (Step 6 cleanup is never automatic), or commit to Git. The runbook it follows is
 `.claude/skills/monthly-build/SKILL.md`; change that file to change how the agent works.
+
+**Guardrails** (enforced by Claude Code for every session opened in this repo, not just the agent):
+
+| Layer | File | What it does |
+|---|---|---|
+| Runbook | `.claude/skills/monthly-build/SKILL.md` | Tells the agent when to stop and ask (followed by the model, not enforced) |
+| Permission rules | `.claude/settings.json` | Allow / ask / deny by how a command starts. Starts sessions in the ask-first mode; bypass mode is disabled; MCP connectors are denied |
+| Build guard hook | `.claude/hooks/build_guard.ps1` | Reads the whole command or file path before it runs and answers deny or ask (never allow) |
+
+Denied outright: deletes or moves in GCS and BigQuery (`gsutil rm/mv/rsync -d`, `gcloud storage rm/mv`,
+`bq rm/truncate`, `bq cp -f`, `bq load --replace` run directly); `bq query` with a statement that changes data
+or tables, or without `--maximum_bytes_billed`; `git push/commit/reset/clean/restore`, branch deletes,
+discarding checkouts; changes to `.claude/settings*.json` or `.claude/hooks/`; any write on the shared drive;
+deletes, moves or renames in the data folder, and file edits there outside the current delivery's month folder
+(the folder of the newest `delivery_<date>.json`); `gcloud` account, project or permission changes and printing
+tokens; environment variables, execution policy, registry and scheduled tasks.
+
+Asks first: `-AllowRebuild`; `gcloud auth login`; other `bq`/`gsutil`/`gcloud` writes; git branch switches,
+merges, stashes and staging; edits under `build/`, `schemas/` and `.claude/skills/`; Python, nested shells
+(`cmd /c`, `pwsh -Command`, `Invoke-Expression`); installs (`pip`, `conda`, `winget`...); other deletes; web
+access.
+
+The guard matches words anywhere in a command, so a harmless command that only mentions a blocked one (for
+example `echo gsutil rm`) is also refused. If the guard itself fails, it asks rather than letting the call
+through. Every call it sees is logged with its decision in `<data_root>\_build_logs\agent_audit_<yyyyMMdd>.log`.
+To test it, pipe a payload in:
+`'{"tool_name":"PowerShell","tool_input":{"command":"bq rm -f d.t"},"cwd":"."}' | pwsh -NoProfile -File .claude/hooks/build_guard.ps1`.
+
+The first time Claude Code opens this repo it asks you to trust the folder; until you do, the `allow` rules
+are ignored (deny, ask and the hook still apply), so every wrapper step asks.
 
 **Two MC tables have no mining-claims rows** (`ACTION_CASE`, `SUPPLEMENTAL_USE` in 2026), so no MC files are
 uploaded for them. The PS1 now prints `SKIP: bq load MC <table>` for those instead of a failed append, so a

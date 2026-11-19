@@ -1,5 +1,7 @@
 {
   "permissions": {
+    "defaultMode": "default",
+    "disableBypassPermissionsMode": "disable",
     "allow": [
       "PowerShell(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 *)",
       "Bash(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 *)",
@@ -14,29 +16,60 @@
       "Bash(git status *)",
       "Bash(git log *)",
       "Bash(git diff *)",
-      "Bash(git branch *)",
+      "Bash(git branch --show-current)",
       "PowerShell(git status *)",
       "PowerShell(git log *)",
       "PowerShell(git diff *)",
-      "PowerShell(git branch *)"
+      "PowerShell(git branch --show-current)",
+      "Bash(gcloud auth list *)",
+      "PowerShell(gcloud auth list *)"
     ],
     "ask": [
       "Edit(schemas/**)",
-      "Edit(build/**)"
+      "Edit(build/**)",
+      "Edit(.claude/skills/**)",
+      "PowerShell(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 * -AllowRebuild*)",
+      "Bash(pwsh -NoProfile -ExecutionPolicy Bypass -File build/run_build.ps1 * -AllowRebuild*)",
+      "Bash(gcloud auth login *)",
+      "PowerShell(gcloud auth login *)",
+      "Bash(git checkout *)", "Bash(git switch *)", "Bash(git merge *)", "Bash(git rebase *)",
+      "Bash(git stash *)", "Bash(git add *)", "Bash(git pull *)", "Bash(git branch *)",
+      "PowerShell(git checkout *)", "PowerShell(git switch *)", "PowerShell(git merge *)", "PowerShell(git rebase *)",
+      "PowerShell(git stash *)", "PowerShell(git add *)", "PowerShell(git pull *)", "PowerShell(git branch *)",
+      "WebFetch",
+      "WebSearch"
     ],
     "deny": [
-      "Bash(gsutil rm *)",
-      "Bash(gsutil -m rm *)",
-      "Bash(gcloud storage rm *)",
-      "Bash(bq rm *)",
-      "PowerShell(gsutil rm *)",
-      "PowerShell(gsutil -m rm *)",
-      "PowerShell(gcloud storage rm *)",
-      "PowerShell(bq rm *)",
-      "Bash(git push *)",
-      "Bash(git commit *)",
-      "PowerShell(git push *)",
-      "PowerShell(git commit *)"
+      "Bash(gsutil rm *)", "Bash(gsutil -m rm *)", "Bash(gsutil mv *)", "Bash(gsutil -m mv *)",
+      "Bash(gcloud storage rm *)", "Bash(gcloud storage mv *)", "Bash(bq rm *)",
+      "PowerShell(gsutil rm *)", "PowerShell(gsutil -m rm *)", "PowerShell(gsutil mv *)", "PowerShell(gsutil -m mv *)",
+      "PowerShell(gcloud storage rm *)", "PowerShell(gcloud storage mv *)", "PowerShell(bq rm *)",
+      "Bash(git push *)", "Bash(git commit *)", "Bash(git reset *)", "Bash(git clean *)", "Bash(git restore *)",
+      "PowerShell(git push *)", "PowerShell(git commit *)", "PowerShell(git reset *)", "PowerShell(git clean *)", "PowerShell(git restore *)",
+      "Bash(gcloud config set *)", "Bash(gcloud auth revoke *)", "Bash(gcloud auth activate-service-account *)",
+      "Bash(gcloud auth application-default *)", "Bash(gcloud auth print-access-token *)",
+      "PowerShell(gcloud config set *)", "PowerShell(gcloud auth revoke *)", "PowerShell(gcloud auth activate-service-account *)",
+      "PowerShell(gcloud auth application-default *)", "PowerShell(gcloud auth print-access-token *)",
+      "Edit(.claude/settings.json)",
+      "Edit(.claude/settings.local.json)",
+      "Edit(.claude/hooks/**)",
+      "Edit(//g/**)",
+      "mcp__*"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/build_guard.ps1"],
+            "timeout": 30
+          }
+        ]
+      }
     ]
   }
 }
