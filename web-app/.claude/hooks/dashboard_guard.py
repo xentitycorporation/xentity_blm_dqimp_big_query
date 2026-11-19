@@ -12,17 +12,17 @@ What may run:
     <step> = preflight | next | next --add | next --date YYYYMMDD | next --add --date YYYYMMDD
              | build | compare | publish-dry | publish | verify
     No other command, option, chaining, redirect, variable or second line.
-  * Read / Grep / Glob: only the agent's own outputs in Query_Results\\mlrs_case_completeness\\
-    (the .md reports, build_manifest.json, agent_logs\\*.log, agent_history\\*.json) - never the
-    CSVs (case-level data), the scripts, the config, or anything outside this folder.
-  * Write / Edit: only Query_Results\\mlrs_case_completeness\\Dashboard_Update_Report_<YYYYMMDD>.md.
+  * Read / Grep / Glob: only the agent's own outputs in the output folder OUT (set below): the .md
+    reports, build_manifest.json, agent_logs\\*.log, agent_history\\*.json - never the CSVs
+    (case-level data), the scripts, the config, or anything else.
+  * Write / Edit: only OUT\\Dashboard_Update_Report_<YYYYMMDD>.md.
   * Skill: only dashboard-update. Plus the harmless session tools (task list, asking the person,
     reading a background step's output, loading tool definitions).
 Everything else - web access, MCP/connector tools, subagents, notebooks, stopping a running
 step, any other file or command - is refused.
 
 If this script hits an error it refuses the call (fails closed). Every decision is appended to
-Query_Results\\mlrs_case_completeness\\agent_logs\\guard_<yyyymmdd>.log.
+OUT\\agent_logs\\guard_<yyyymmdd>.log.
 
 Test by piping a payload in:
   echo {"tool_name":"Bash","tool_input":{"command":"dir"}} | python -I .claude\\hooks\\dashboard_guard.py
@@ -35,8 +35,15 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "Query_Results" / "mlrs_case_completeness"
+ROOT = Path(__file__).resolve().parents[2]   # the folder holding .claude\ and tests\
+# The one folder the agent may read and write: the same output folder dqimp_webapp.py uses.
+#   deployed folder (a Query_Results folder next to tests\):  <ROOT>\Query_Results\mlrs_case_completeness
+#   Git clone (<repo>\web-app\):  <folder holding the repo>\Query_Results\web-app\mlrs_case_completeness,
+#     outside the repo, as output_dir in webapp_config.json says. Written here, not read from the config.
+if (ROOT / "Query_Results").is_dir():
+    OUT = ROOT / "Query_Results" / "mlrs_case_completeness"
+else:
+    OUT = ROOT.parent.parent / "Query_Results" / "web-app" / "mlrs_case_completeness"
 
 STEP = r"(?:preflight|next(?: --add)?(?: --date \d{8})?|build|compare|publish-dry|publish|verify)"
 SHELL_OK = {
@@ -104,16 +111,16 @@ def decide(payload):
     if tool == "Read":
         p = real(ti.get("file_path", ""), cwd)
         return None if readable(p) else \
-            "reading is limited to the agent's own reports and logs in Query_Results\\mlrs_case_completeness"
+            f"reading is limited to the agent's own reports and logs in {OUT}"
     if tool in ("Grep", "Glob"):
         if not ti.get("path"):
-            return "Grep/Glob need a path inside Query_Results\\mlrs_case_completeness"
+            return f"Grep/Glob need a path inside {OUT}"
         p = real(ti["path"], cwd)
         pattern = str(ti.get("pattern" if tool == "Glob" else "glob", "") or "")
         if not under(p, OUT) or ".." in pattern or re.match(r"^([a-zA-Z]:|/|\\)", pattern) \
                 or (tool == "Grep" and str(ti.get("glob", "") or "").lower().endswith(".csv")) \
                 or (tool == "Glob" and pattern.lower().endswith(".csv")):
-            return "searching is limited to the agent's reports and logs in Query_Results\\mlrs_case_completeness (no CSVs)"
+            return f"searching is limited to the agent's reports and logs in {OUT} (no CSVs)"
         if tool == "Grep" and os.path.isfile(p) and not readable(p):
             return "that file is not one the agent may read"
         if tool == "Grep" and os.path.isdir(p) and not ti.get("glob"):
@@ -124,7 +131,7 @@ def decide(payload):
         ok = os.path.dirname(p) == os.path.normcase(os.path.realpath(str(OUT))) \
             and REPORT.fullmatch(os.path.basename(p))
         return None if ok else \
-            "the only file the agent may write is Query_Results\\mlrs_case_completeness\\Dashboard_Update_Report_<YYYYMMDD>.md"
+            f"the only file the agent may write is {OUT}\\Dashboard_Update_Report_<YYYYMMDD>.md"
     return f"the tool '{tool}' is not part of the dashboard update workflow"
 
 

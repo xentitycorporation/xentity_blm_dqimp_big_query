@@ -26,8 +26,8 @@ This runs on a BLM computer. A guard hook (`.claude\hooks\dashboard_guard.py`) c
 | You may | Only this |
 |---|---|
 | Run a command | `./tests/run_dashboard.bat <step>` (Bash) or `& .\tests\run_dashboard.bat <step>` (PowerShell), one step per call, with no other text before or after it |
-| Read, Grep, Glob | Your own outputs in `Query_Results\mlrs_case_completeness\`: the `.md` reports, `build_manifest.json`, `agent_logs\*.log`, `agent_history\*.json` |
-| Write or Edit | `Query_Results\mlrs_case_completeness\Dashboard_Update_Report_<d>.md` only |
+| Read, Grep, Glob | Your own outputs in the output folder (below): the `.md` reports, `build_manifest.json`, `agent_logs\*.log`, `agent_history\*.json` |
+| Write or Edit | `Dashboard_Update_Report_<d>.md` in the output folder, only |
 | Other | Your task list, asking the person a question |
 
 The steps are: `preflight`, `next`, `next --add`, `next --date <d>`, `next --add --date <d>`, `build`, `compare`, `publish-dry`, `publish`, `verify`.
@@ -35,7 +35,7 @@ The steps are: `preflight`, `next`, `next --add`, `next --date <d>`, `next --add
 You never read:
 - the CSVs (case-level data);
 - the scripts or the config;
-- anything outside this folder.
+- anything outside this folder and the output folder.
 
 You never use the web, connectors, subagents or any other command.
 
@@ -44,6 +44,7 @@ You never use the web, connectors, subagents or any other command.
 The script adds its own checks to every step. It refuses to run, with exit 5 and `STOPPED guard: …`, if any of these is true:
 - a script, the SQL, the config (apart from the snapshot list), the skill, `CLAUDE.md` or the guard has changed since the person pinned them;
 - the config points at any Portal, item or BigQuery project other than the expected ones;
+- the scripts would write somewhere other than the output folder the guard allows;
 - hooks have been switched off.
 
 When that happens, quote the lines and stop. Only the person can re-pin, and they do it by hand.
@@ -54,9 +55,17 @@ Before step 1, Read `guard_canary.txt` in this folder. **The read must be refuse
 - If it's refused that way: the guard is on. Continue.
 - If you can read the file, or the refusal doesn't name the Dashboard guard: **stop.** Run no step. Tell the person the guard is not active.
 
+## The output folder
+
+Every step prints `OUT <path>` near the top. That folder is the only one you may read, and your report goes there. Its place depends on how this folder was set up, and both are normal:
+- **Git clone** (this folder is `web-app\` in the repo): `Query_Results\web-app\mlrs_case_completeness\` in the folder that holds the repo, outside the repo, so the CSVs never go into Git.
+- **Deployed folder:** `Query_Results\mlrs_case_completeness\` next to `tests\`.
+
+The script checks before every step that it writes to the same folder the guard allows.
+
 ## How to run each step
 
-Run every step from this folder (the one holding `tests\` and `Query_Results\`), as one call:
+Run every step from this folder (the one holding `tests\`), as one call:
 
 - Bash tool: `./tests/run_dashboard.bat <step> [options]`
 - PowerShell tool: `& .\tests\run_dashboard.bat <step> [options]`
@@ -65,12 +74,12 @@ The wrapper activates the ArcGIS Pro environment `arcgispro_clone` and runs `tes
 
 - Every step prints `LOG <path>` near the top and writes all of its output there (`agent_logs\<step>_<time>.log`). It ends with `DONE <step> exit <code>`.
 - **build** (about 3 minutes) and **publish** (10–30 minutes: the Cases CSV is over 100 MB and goes up in 8 MB parts) are long. Run them with `run_in_background` and wait for the completion notice. Do not poll, do not sleep, and never stop a running step.
-  - Then read that step's log: the newest `agent_logs\<step>_*.log` (use Glob on `Query_Results/mlrs_case_completeness/agent_logs`).
+  - Then read that step's log: the newest `agent_logs\<step>_*.log` (use Glob with `path` set to the `agent_logs` folder inside the output folder, and pattern `<step>_*.log`).
   - The background task's own output file is outside this folder, so you can't read it.
 
 Exit codes: 0 OK · 1 error · 3 nothing new · 5 needs a person · 6 flags to look at.
 
-Every file the steps write lands in `Query_Results\mlrs_case_completeness\`: the CSVs (which you can't open), `compare_<d>.md`, `verify_<d>.md`, and the `agent_logs\` and `agent_history\` folders.
+Every file the steps write lands in the output folder: the CSVs (which you can't open), `compare_<d>.md`, `verify_<d>.md`, and the `agent_logs\` and `agent_history\` folders.
 Your report goes there too.
 
 ## The steps
@@ -78,7 +87,8 @@ Your report goes there too.
 Track the steps with your task list. For the report, note each step's start time, how long it took, its exit code and its log path.
 
 ### 1. Preflight: `preflight`
-- **Exit 0:** continue. Note the `ask_before_publish` value on the INFO line.
+- **Exit 0:** continue. Note the `ask_before_publish` value on the INFO line, and the `OUT` folder.
+- **Exit 5, `Claude Code may read the output folder`:** **stop.** Quote the line. The person must create `.claude\settings.local.json` with the text it gives; you can't, and you can't read the output folder until they do.
 - **Exit 5, Portal:** ArcGIS Pro is not signed in to `hqgis.blm.gov`. **Stop.** Ask the person to open ArcGIS Pro, sign in to the HQ Portal with their PIV card (it must be Pro's active portal), and tell you when that's done. Then re-run preflight. Never try to sign in yourself.
 - **Exit 5, BigQuery:** **stop.** Ask the person to run `gcloud auth application-default login` in a terminal (it opens their browser), then re-run preflight.
 - **Exit 1:** stop and report the FAIL lines.
@@ -139,7 +149,7 @@ Track the steps with your task list. For the report, note each step's start time
 - **Exit 1:** report the error.
 
 ### 9. Report
-Write `Dashboard_Update_Report_<d>.md` in `Query_Results\mlrs_case_completeness\` (template below). Then tell the person, in a few lines:
+Write `Dashboard_Update_Report_<d>.md` in the output folder (template below). Then tell the person, in a few lines:
 - whether the dashboard was updated or not;
 - where the report is;
 - what needs them.

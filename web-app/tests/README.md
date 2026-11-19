@@ -77,8 +77,8 @@ python web-app/tests/dqimp_webapp.py display
 
 | Layout | Script at | CSVs written to |
 |---|---|---|
-| Repo | `<repo>/web-app/tests/` | `output_dir` in the config, relative to the repo root: `../Query_Results/web-app/<page>/`, outside the repo |
-| Flat (a working copy outside Git, e.g. on the BLM computer) | `<folder>/tests/` | `<folder>/Query_Results/<page>/`, used whenever a `Query_Results` folder sits next to `tests` |
+| Repo (your laptop, and the clone the dashboard agent runs from on the BLM computer) | `<repo>/web-app/tests/` | `output_dir` in the config, relative to the repo root: `../Query_Results/web-app/<page>/`, outside the repo |
+| Flat (an older deployed copy outside Git) | `<folder>/tests/` | `<folder>/Query_Results/<page>/`, used whenever a `Query_Results` folder sits next to `tests` |
 
 The page's SQL is always in a folder next to the script (`sql_dir`, e.g. `mlrs_case_completeness/`).
 Both commands print the folder they use.
@@ -104,6 +104,11 @@ send nothing), `--output-dir` (use another output folder; overrides both layouts
 
 ### A new monthly snapshot
 
+The normal way is the dashboard update agent: on the BLM computer, open `web-app\` in VS Code and
+type `/dashboard-update`. It does the steps below with checks around them. See
+[../README_dashboard_agent.md](../README_dashboard_agent.md), "Each month".
+
+By hand:
 1. Load the snapshot into BigQuery (`build/`, unchanged by this work).
 2. Add its date to `snapshots` in `webapp_config.json`.
 3. `build`, then `publish`.
