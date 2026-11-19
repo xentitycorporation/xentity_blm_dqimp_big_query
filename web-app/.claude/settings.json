@@ -24,7 +24,7 @@
       "Read(tests/**)", "Edit(tests/**)",
       "Read(.claude/**)", "Edit(.claude/**)",
       "Edit(CLAUDE.md)",
-      "Read(Query_Results/**/*.csv)", "Edit(Query_Results/**/*.csv)",
+      "Read(//**/*.csv)", "Edit(//**/*.csv)",
       "Read(~/.claude/**)", "Edit(~/.claude/**)",
       "Read(~/AppData/**)", "Edit(~/AppData/**)",
       "Read(~/.ssh/**)", "Read(~/.config/**)", "Read(~/.gitconfig)",

@@ -436,6 +436,24 @@ the runbook is started anywhere other than `build\`, its first step stops it.
 When VS Code opens `build\`, it may ask whether to open the Git repository in the parent folder: say yes, so
 the branch shows in the status bar.
 
+**Each month, with the build agent**
+1. Check the new zips are on the shared drive (the `mlrs_drop` and `nlsdb_drop` folders).
+2. Bring the repo up to date: `git switch main`, then `git pull`. If the branch isn't `main`, or there
+   are uncommitted changes under `build\` or `schemas\`, the agent stops after preflight and asks.
+3. In VS Code: File → Open Folder → the repo's `build` folder. The first time, trust the folder.
+4. Open the Claude Code panel, check the mode reads **Manual**, and type `/monthly-build`.
+   - Add a date (`/monthly-build 20261206`) only to build a specific delivery.
+   - Asking in your own words doesn't start it: the skill runs only when the command is typed.
+5. It checks that it's in `build\` and that the guard is running, then runs preflight, fetch, the layout
+   checks without upload, the upload, the load check and the load, and verify. The long steps (fetch,
+   prepare, load) run in the background: copying ~7.5 GB, then hours of extraction and checks, then
+   30–60 minutes of loads.
+6. It stops for you only when it needs you: a gcloud sign-in, a layout change, a row with an embedded `|`,
+   a snapshot that's already loaded, or a failed check. Each stop says what it found and asks.
+7. When it finishes, read `Build_Report_<date>.md` in the month folder, including "Needs your decision".
+   GCS cleanup (Step 6) is never part of the run.
+8. Then run the dashboard update on the BLM computer (`web-app\README_dashboard_agent.md`, "Each month").
+
 **One-time setup per machine**
 1. Copy `build\monthly_build.example.json` to `build\monthly_build.local.json` (git-ignored) and set
    `data_root` (the folder holding one folder per delivery), `mlrs_drop` and `nlsdb_drop` (the shared

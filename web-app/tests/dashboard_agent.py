@@ -19,10 +19,14 @@ Exit codes: 0 OK - 1 error - 3 nothing new - 5 needs a person - 6 flags to look 
 
 dqimp_webapp.py does the real work and is not changed by this file. Logs and agent files go
 under the page's output folder (Query_Results\\<page>\\agent_logs and agent_history), never in tests\\.
+That folder is Query_Results\\<page> next to tests\\ in the deployed folder, and
+<folder holding the repo>\\Query_Results\\web-app\\<page> in a Git clone. Every step checks it is the
+same folder the guard hook allows (OUT in .claude\\hooks\\dashboard_guard.py).
 """
 
 import argparse
 import csv
+import importlib.util
 import json
 import os
 import re
@@ -170,7 +174,7 @@ def fingerprints(cfg, page):
 
 def pin(cfg, page):
     """Run by the PERSON, never by the agent (the guard hook refuses it): freezes the current files."""
-    problems = hard_limit_problems(cfg, page)
+    problems = hard_limit_problems(cfg, page) + output_folder_problems(cfg, page)
     if problems:
         print("STOPPED not pinned: " + "; ".join(problems))
         return ERROR
@@ -218,9 +222,54 @@ def settings_problems():
     return out
 
 
+GUARD = ROOT / ".claude" / "hooks" / "dashboard_guard.py"
+
+
+def norm(p):
+    return os.path.normcase(os.path.realpath(str(p)))
+
+
+def guard_folder():
+    """OUT from the guard hook itself (a pinned file), so the scripts and the guard can never disagree."""
+    spec = importlib.util.spec_from_file_location("dashboard_guard", GUARD)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return Path(mod.OUT)
+
+
+def output_folder_problems(cfg, page):
+    """The folder the scripts write to must be the one folder the guard lets the agent read."""
+    out_dir = W.output_dir(cfg, page)
+    try:
+        allowed = guard_folder()
+    except Exception as e:
+        return [f"could not read the guard's output folder from {GUARD.name} ({type(e).__name__}: {e})"]
+    if norm(out_dir) != norm(allowed):
+        return [f"the scripts write to {out_dir}, but the guard only lets the agent read {allowed}"]
+    return []
+
+
+def local_settings_problems(out_dir):
+    """Git clone only: the output folder is outside the folder Claude Code has open, so it must be listed in
+    .claude\\settings.local.json (permissions.additionalDirectories) or Claude Code refuses to read it."""
+    p = ROOT / ".claude" / "settings.local.json"
+    dirs = []
+    if p.exists():
+        try:
+            dirs = (json.loads(p.read_text(encoding="utf-8-sig")).get("permissions") or {}).get("additionalDirectories") or []
+        except Exception as e:
+            return [f"{p} could not be read ({e})"]
+    if norm(out_dir) in {norm(d) for d in dirs}:
+        return []
+    posix = "//" + str(out_dir)[0].lower() + str(out_dir)[2:].replace("\\", "/")
+    snippet = json.dumps({"permissions": {"additionalDirectories": [str(out_dir)],
+                                          "allow": [f"Edit({posix}/Dashboard_Update_Report_*.md)"]}})
+    return [f"{p} does not list the output folder. The person creates it with: {snippet}"]
+
+
 def integrity(cfg, page):
     """Every step except `pin` starts here. Returns a list of reasons to stop (empty = all good)."""
-    problems = hard_limit_problems(cfg, page) + settings_problems()
+    problems = hard_limit_problems(cfg, page) + settings_problems() + output_folder_problems(cfg, page)
     if not PINS.exists():
         return problems + [f"{PINS.name} is missing: the person must run `tests\\run_dashboard.bat pin` once, by hand"]
     pinned = json.loads(PINS.read_text(encoding="utf-8")).get("files", {})
@@ -279,7 +328,12 @@ def preflight(cfg, acfg, page, skip_portal=False):
     flat = (SCRIPT_DIR.parent / "Query_Results").is_dir()
     out_dir = W.output_dir(cfg, page)
     check("Output folder", out_dir.parent.is_dir(),
-          f"{out_dir} ({'flat layout' if flat else 'repo layout'})")
+          f"{out_dir} ({'deployed folder' if flat else 'Git clone: outside the repo'})")
+    if not flat:
+        local = local_settings_problems(out_dir)
+        check("Claude Code may read the output folder", not local,
+              "; ".join(local) or f"listed in {ROOT / '.claude' / 'settings.local.json'}",
+              status_if_bad="NEEDS_PERSON")
 
     bq_status = "FAIL"
     try:
@@ -590,6 +644,7 @@ def main():
     sys.stderr = sys.stdout
     print(f"STEP {a.step} | page {page} | {dt.datetime.now():%Y-%m-%d %H:%M:%S} | config {W.CONFIG_PATH}")
     print(f"LOG {log}")
+    print(f"OUT {logs.parent}")
     if a.step == "pin":
         code = pin(cfg, page)
     else:
