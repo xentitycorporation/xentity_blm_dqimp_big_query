@@ -478,9 +478,9 @@ BigQuery (Step 6 cleanup is never automatic), or commit to Git. The runbook it f
 
 | Layer | File | What it does |
 |---|---|---|
-| Runbook | `build/.claude/skills/monthly-build/SKILL.md` | Tells the agent when to stop and ask (followed by the model, not enforced). Its first step checks that the session is open on `build\` and that the guard is running |
-| Permission rules | `build/.claude/settings.json` (agent); `.claude/settings.json` (repo root) | Allow / ask / deny by how a command starts. Starts sessions in the ask-first mode; bypass mode is disabled; MCP connectors are denied. Only the agent's file lets the wrapper run without asking |
-| Build guard hook | `build/.claude/hooks/build_guard.ps1`, run from both settings files | Reads the whole command or file path before it runs and answers deny or ask (never allow). It finds `build\` and the repo from its own location, so the rules are the same whichever folder is open |
+| Runbook | `build/.claude/skills/monthly-build/SKILL.md` | Tells the agent when to stop and ask (followed by the model, not enforced). Its first step checks that the session is open on `build\` and that the guard is running. It sets `disable-model-invocation: true`, so it runs only when you type `/monthly-build`: Claude can't start it from your own words |
+| Permission rules | `build/.claude/settings.json` (agent); `.claude/settings.json` (repo root) | Allow / ask / deny by how a command starts. Starts sessions in the ask-first mode; bypass mode is disabled, and so is auto mode in the agent's file; MCP connectors are denied. Only the agent's file lets the wrapper run without asking |
+| Build guard hook | `build/.claude/hooks/build_guard.ps1`, run from both settings files | Reads the whole command or file path before it runs and answers deny or ask (never allow). It finds `build\` and the repo from its own location, so the rules are the same whichever folder is open. A tool called by path or with an extension (`git.exe`, `gsutil.cmd`, `C:\...\bq.cmd`) is checked the same as the plain name. Both settings files set `"onFailure": "block"` (Claude Code 2.1.295 or later), so a guard that can't start or times out blocks the call |
 
 Denied outright: deletes or moves in GCS and BigQuery (`gsutil rm/mv/rsync -d`, `gcloud storage rm/mv`,
 `bq rm/truncate`, `bq cp -f`, `bq load --replace` run directly); `bq query` with a statement that changes data
@@ -496,8 +496,8 @@ merges, stashes and staging; edits under `build/`, `schemas/` and any `.claude/s
 access.
 
 The guard matches words anywhere in a command, so a harmless command that only mentions a blocked one (for
-example `echo gsutil rm`) is also refused. If the guard itself fails, it asks rather than letting the call
-through. Every call it sees is logged with its decision in `<data_root>\_build_logs\agent_audit_<yyyyMMdd>.log`.
+example `echo gsutil rm`) is also refused. If the guard hits an error while checking a call, it asks rather
+than letting the call through; if it can't run at all, Claude Code blocks the call. Every call it sees is logged with its decision in `<data_root>\_build_logs\agent_audit_<yyyyMMdd>.log`.
 To test it, pipe a payload in, from `build\`:
 `'{"tool_name":"PowerShell","tool_input":{"command":"bq rm -f d.t"},"cwd":"."}' | pwsh -NoProfile -File .claude/hooks/build_guard.ps1`.
 

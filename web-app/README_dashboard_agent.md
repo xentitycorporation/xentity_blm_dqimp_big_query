@@ -23,10 +23,12 @@ It runs on a BLM computer, so it is limited to exactly what the update needs. Th
 | Layer | What it does | Holds even if… |
 |---|---|---|
 | **Guard hook** (`.claude\hooks\dashboard_guard.py`, runs before every tool call) | Allowlist. Allows only:<br>• the wrapper with one of 10 fixed step forms;<br>• reading the agent's own reports and logs;<br>• writing its own report file.<br>Refuses everything else: other commands, the CSVs, the scripts, files outside `Query_Results\mlrs_case_completeness\`, the web, connectors, subagents, stopping a running step. Set to block if the hook itself fails. Logs every decision to `agent_logs\guard_<date>.log`. | …a permission prompt is clicked "always allow" or a permission mode is changed: a hook refusal comes before the permission rules. |
-| **Permission rules** (`.claude\settings.json`) | Deny rules for the dangerous ones (`--create`, `pin`, `display`, direct `dqimp_webapp`, `git`, edits to `tests\`/`.claude\`/`CLAUDE.md`, the CSVs, your `.claude`, `AppData` and gcloud credentials, web, subagents, connectors). Bypass mode and auto mode are disabled. | …the hook doesn't run. A deny in this file can't be overridden by an allow anywhere else. |
+| **Permission rules** (`.claude\settings.json`) | Deny rules for the dangerous ones (`--create`, `pin`, `display`, direct `dqimp_webapp`, `git`, edits to `tests\`/`.claude\`/`CLAUDE.md`, the CSVs, your `.claude`, `AppData` and gcloud credentials, web, subagents, connectors). Bypass mode and auto mode are disabled. Claude's file tools can't read outside this folder (`blockReadsOutsideWorkingDirectories`). | …the hook doesn't run. A deny in this file can't be overridden by an allow anywhere else. |
 | **The script itself** (`tests\dashboard_agent.py`) | Every step first checks:<br>• the files are exactly as you pinned them;<br>• the config still points at `hqgis.blm.gov`, the four dashboard items and `xentity-sandbox-huy` (written into the code);<br>• no settings file switches hooks off.<br>Before publishing it signs in and checks that each item is the expected hosted table, owned by you. It never uses `--create`. | …Claude Code's settings are changed: a tampered or redirected setup refuses to run. |
 
 Plus a self-test: before step 1 the agent must try to read `guard_canary.txt`, and the guard must refuse it. If the read works, the guard is off and the agent stops.
+
+The skill only runs when you type `/dashboard-update`: it sets `disable-model-invocation: true`, so asking Claude in your own words to "update the dashboard" doesn't start it.
 
 ## 0. Before you start
 - **Check that using Claude Code with your personal Claude Pro subscription is allowed on this government computer** (DOI policy and the contract).
@@ -38,7 +40,7 @@ Plus a self-test: before step 1 the agent must try to read `guard_canary.txt`, a
 - The snapshot must already be in BigQuery from the monthly build.
 
 ## 1. Copy the files
-Into `C:\Users\mferenc\OneDrive - DOI\Documents\BLM DQIMP Reporting\DQIMP_BLM_WebApp\`:
+Into the deployed folder on the BLM computer, `%USERPROFILE%\OneDrive - DOI\Documents\BLM DQIMP Reporting\DQIMP_BLM_WebApp\`:
 
 | From the repo's `web-app\` folder | To |
 |---|---|
@@ -107,7 +109,10 @@ After two good runs, set `"ask_before_publish": false` in `tests\dashboard_agent
 ## While using it
 - **Don't click "always allow"** on a prompt for anything other than the wrapper. The guard still refuses, but there's no reason to widen the rules.
 - **Don't switch the conversation to bypass or auto mode.** Both are disabled here anyway.
-- **Optional, strongest:** in your user settings (`C:\Users\mferenc\.claude\settings.json`), add `"permissions": {"denyInsteadOfPrompting": true}`. Any call that would have shown you a prompt is then refused outright. It applies to every Claude Code conversation on this computer.
+- **Optional, strongest (Claude Code 2.1.319 or later only):** in your user settings (`%USERPROFILE%\.claude\settings.json`), add `"permissions": {"denyInsteadOfPrompting": true}`.
+  - Any call that would have shown you a prompt is then refused outright.
+  - It applies to every Claude Code conversation on this computer.
+  - A repository can't set it for you. On an older version the setting does nothing, so check the version first.
 - **Audit:** `agent_logs\guard_<date>.log` lists every tool call the agent tried, and whether it was allowed.
 
 ## Keeping the repo's snapshot list current

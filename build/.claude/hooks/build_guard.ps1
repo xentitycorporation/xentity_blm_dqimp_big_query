@@ -103,6 +103,14 @@ try {
         $cmd = [string]$in.tool_input.command
         $subject = $cmd
         $n = Norm $cmd
+        # A tool named with a path or an extension (git.exe, gsutil.cmd, c:/x/bq.cmd,
+        # & 'c:/program files/git/cmd/git.exe') is reduced to its bare name, so every check
+        # below sees it the same as plain "git", "gsutil" or "bq".
+        $tools = 'git|gsutil|bq|gcloud|pwsh|powershell|python3?|py|cmd|conda|pip3?|mamba|winget|choco|scoop|npm|reg|setx|schtasks|netsh'
+        $ext = '(?:\.exe|\.cmd|\.bat|\.com)'
+        $n = [regex]::Replace($n, '([''"])[^''"]*/(' + $tools + ')' + $ext + '?\1', '$2')
+        $n = [regex]::Replace($n, '(^|[\s;&|(])[^\s''";&|()]*/(' + $tools + ')' + $ext + '?(?=[\s;&|)]|$)', '$1$2')
+        $n = [regex]::Replace($n, '(^|[\s;&|(])(' + $tools + ')' + $ext + '(?=[\s;&|)]|$)', '$1$2')
         # drop output-to-null redirects so "2>$null" is not read as a file write
         $ns = $n -replace '\d?>\s*&\s*\d', ' ' -replace '\d?>\s*(\$null|/dev/null|nul)\b', ' '
 
