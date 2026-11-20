@@ -498,18 +498,21 @@ BigQuery (Step 6 cleanup is never automatic), or commit to Git. The runbook it f
 |---|---|---|
 | Runbook | `build/.claude/skills/monthly-build/SKILL.md` | Tells the agent when to stop and ask (followed by the model, not enforced). Its first step checks that the session is open on `build\` and that the guard is running. It sets `disable-model-invocation: true`, so it runs only when you type `/monthly-build`: Claude can't start it from your own words |
 | Permission rules | `build/.claude/settings.json` (agent); `.claude/settings.json` (repo root) | Allow / ask / deny by how a command starts. Starts sessions in the ask-first mode; bypass mode is disabled, and so is auto mode in the agent's file; MCP connectors are denied. Only the agent's file lets the wrapper run without asking |
-| Build guard hook | `build/.claude/hooks/build_guard.ps1`, run from both settings files | Reads the whole command or file path before it runs and answers deny or ask (never allow). It finds `build\` and the repo from its own location, so the rules are the same whichever folder is open. A tool called by path or with an extension (`git.exe`, `gsutil.cmd`, `C:\...\bq.cmd`) is checked the same as the plain name. Both settings files set `"onFailure": "block"` (Claude Code 2.1.295 or later), so a guard that can't start or times out blocks the call |
+| Build guard hook | `build/.claude/hooks/build_guard.ps1`, run from both settings files | Reads the whole command or file path before it runs and answers deny or ask (never allow). It finds `build\` and the repo from its own location, so the rules are the same whichever folder is open. A tool called by path or with an extension (`git.exe`, `gh.exe`, `gsutil.cmd`, `C:\...\bq.cmd`) is checked the same as the plain name. Both settings files set `"onFailure": "block"` (Claude Code 2.1.295 or later), so a guard that can't start or times out blocks the call |
 
 Denied outright: deletes or moves in GCS and BigQuery (`gsutil rm/mv/rsync -d`, `gcloud storage rm/mv`,
 `bq rm/truncate`, `bq cp -f`, `bq load --replace` run directly); `bq query` with a statement that changes data
 or tables, or without `--maximum_bytes_billed`; `git push/commit/reset/clean/restore`, branch deletes,
-discarding checkouts; changes to any `.claude/settings*.json` or `.claude/hooks/`; any write on the shared drive;
+discarding checkouts; any GitHub CLI (`gh`) command in the build agent's home, and at the repo root any `gh`
+command that isn't on the guard's read-only list (pull requests, merges, branches, releases, workflows, repo
+settings, sign-in, aliases and extensions are yours; `gh api` only with GET); changes to any
+`.claude/settings*.json` or `.claude/hooks/`; any write on the shared drive;
 deletes, moves or renames in the data folder, and file edits there outside the current delivery's month folder
 (the folder of the newest `delivery_<date>.json`); `gcloud` account, project or permission changes and printing
 tokens; environment variables, execution policy, registry and scheduled tasks.
 
 Asks first: `-AllowRebuild`; `gcloud auth login`; other `bq`/`gsutil`/`gcloud` writes; git branch switches,
-merges, stashes and staging; edits under `build/`, `schemas/` and any `.claude/skills/`; Python, nested shells
+merges, stashes and staging; `gh pr checkout`, `gh repo clone` and gh downloads (repo root only); edits under `build/`, `schemas/` and any `.claude/skills/`; Python, nested shells
 (`cmd /c`, `pwsh -Command`, `Invoke-Expression`); installs (`pip`, `conda`, `winget`...); other deletes; web
 access.
 
