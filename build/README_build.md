@@ -452,7 +452,7 @@ the branch shows in the status bar.
    a snapshot that's already loaded, or a failed check. Each stop says what it found and asks.
 7. When it finishes, read `Build_Report_<date>.md` in the month folder, including "Needs your decision".
    GCS cleanup (Step 6) is never part of the run.
-8. Then run the dashboard update on the BLM computer (`web-app\README_dashboard_agent.md`, "Each month").
+8. Then run the dashboard update (`web-app\README_dashboard_agent.md`, "Each month").
 
 **One-time setup per machine**
 1. Copy `build\monthly_build.example.json` to `build\monthly_build.local.json` (git-ignored) and set

@@ -1,6 +1,6 @@
-# DQIMP Web Experience tables (BLM computer)
+# DQIMP Web Experience tables
 
-> **Scope.** These instructions are for this folder opened on its own on the BLM computer, where the dashboard update agent runs. That is the `web-app\` folder of a Git clone of the repo, or an older deployed copy of it. In a session opened at the repo root, this file is background only: the guard below is not running there, and the repo's own `.claude\` settings apply.
+> **Scope.** These instructions are for this folder opened on its own in VS Code, where the dashboard update agent runs. That is the `web-app\` folder of a Git clone of the repo, or an older deployed copy of it. In a session opened at the repo root, this file is background only: the guard below is not running there, and the repo's own `.claude\` settings apply.
 
 This folder builds the four tables behind the **MLRS Case Completeness** dashboard. The dashboard is embedded in the "BLM Land Records Data Quality Viewer" Web Experience in the BLM HQ Portal, and the tables are published there.
 The monthly update is the `/dashboard-update` skill (`.claude\skills\dashboard-update\SKILL.md`).
@@ -16,13 +16,13 @@ The monthly update is the `/dashboard-update` skill (`.claude\skills\dashboard-u
   - In a deployed copy: `Query_Results\mlrs_case_completeness\` next to `tests\`.
   - Outputs never go in `tests\`.
 
-## This machine
+## Environment
 - ArcGIS Pro 3.5.5. **No admin rights.**
 - The Python environment is `arcgispro_clone`. In a terminal, activate it with `activate arcgispro_clone` from the ArcGIS Python Command Prompt; `conda activate` needs admin. The wrapper does this itself.
 - Portal: `https://hqgis.blm.gov/portal/`, folder *BLM DQIMP Prototype*.
-  - Sign-in is `GIS("pro")`: ArcGIS Pro's own PIV-card session. If it has expired, the person signs in again in Pro. Never enter or ask for a PIN or password.
+  - Sign-in is `GIS("pro")`: ArcGIS Pro's own sign-in session. If it has expired, the person signs in again in Pro. Never enter or ask for a password or PIN.
 - BigQuery project `xentity-sandbox-huy`, dataset `blm_seta_dqimp`. Sign-in is gcloud application-default credentials.
-- The DOI network re-signs HTTPS. The scripts already trust the Windows certificate store. Never turn certificate checking off (`verify_cert=False`, `--no-verify`, etc.).
+- The network re-signs HTTPS. The scripts already trust the Windows certificate store. Never turn certificate checking off (`verify_cert=False`, `--no-verify`, etc.).
 - The HQ Portal stores column names in lower case (`subject_name`). Compare field names case-insensitively.
 
 ## What Claude may do in this folder

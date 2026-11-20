@@ -1,5 +1,5 @@
 {
-  "_comment": "Settings for dqimp_webapp.py. Edit snapshots here, not in the SQL. sql_dir is relative to the folder holding dqimp_webapp.py. output_dir is relative to the repo root and is used only in the repo layout: when a Query_Results folder sits next to the script's folder (the flat BLM layout), the CSVs go there instead. portal_item_id / source_item_id are written by 'publish --create' -- do not edit them by hand.",
+  "_comment": "Settings for dqimp_webapp.py. Edit snapshots here, not in the SQL. sql_dir is relative to the folder holding dqimp_webapp.py. output_dir is relative to the repo root and is used only in the repo layout: when a Query_Results folder sits next to the script's folder (the flat layout of a deployed copy), the CSVs go there instead. portal_item_id / source_item_id are written by 'publish --create' -- do not edit them by hand.",
   "bigquery_project": "xentity-sandbox-huy",
   "output_dir": "../Query_Results/web-app",
   "pages": {
@@ -115,7 +115,7 @@
     }
   },
   "portal": {
-    "_comment": "'pro' reuses ArcGIS Pro's sign-in: Pro must be signed in to the BLM HQ Portal (PIV card) as its active portal. 'oauth' opens a browser instead and needs url + client_id.",
+    "_comment": "'pro' reuses ArcGIS Pro's sign-in: Pro must be signed in to the BLM HQ Portal as its active portal. 'oauth' opens a browser instead and needs url + client_id.",
     "auth": "pro",
     "folder": "BLM DQIMP Prototype",
     "tags": "DQIMP, MLRS, data quality",

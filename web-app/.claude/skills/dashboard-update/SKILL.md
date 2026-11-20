@@ -21,7 +21,7 @@ You never edit the scripts, the SQL or `webapp_config.json` to get past a proble
 
 ## What you may do, and nothing else
 
-This runs on a BLM computer. A guard hook (`.claude\hooks\dashboard_guard.py`) checks every tool call and refuses anything not on this list:
+This publishes to the BLM HQ Portal, so a guard hook (`.claude\hooks\dashboard_guard.py`) checks every tool call and refuses anything not on this list:
 
 | You may | Only this |
 |---|---|
@@ -89,7 +89,7 @@ Track the steps with your task list. For the report, note each step's start time
 ### 1. Preflight: `preflight`
 - **Exit 0:** continue. Note the `ask_before_publish` value on the INFO line, and the `OUT` folder.
 - **Exit 5, `Claude Code may read the output folder`:** **stop.** Quote the line. The person must create `.claude\settings.local.json` with the text it gives; you can't, and you can't read the output folder until they do.
-- **Exit 5, Portal:** ArcGIS Pro is not signed in to `hqgis.blm.gov`. **Stop.** Ask the person to open ArcGIS Pro, sign in to the HQ Portal with their PIV card (it must be Pro's active portal), and tell you when that's done. Then re-run preflight. Never try to sign in yourself.
+- **Exit 5, Portal:** ArcGIS Pro is not signed in to `hqgis.blm.gov`. **Stop.** Ask the person to open ArcGIS Pro, sign in to the HQ Portal (it must be Pro's active portal), and tell you when that's done. Then re-run preflight. Never try to sign in yourself.
 - **Exit 5, BigQuery:** **stop.** Ask the person to run `gcloud auth application-default login` in a terminal (it opens their browser), then re-run preflight.
 - **Exit 1:** stop and report the FAIL lines.
 

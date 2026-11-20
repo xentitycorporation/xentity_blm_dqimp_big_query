@@ -366,7 +366,7 @@ def preflight(cfg, acfg, page, skip_portal=False):
                       "; ".join(item_problems) or ", ".join(EXPECTED_ITEMS.values()))
         except Exception as e:
             check("Portal sign-in (ArcGIS Pro)", False,
-                  f"{type(e).__name__}: {str(e)[:300]} -- open ArcGIS Pro and sign in to the HQ Portal with your PIV card",
+                  f"{type(e).__name__}: {str(e)[:300]} -- open ArcGIS Pro and sign in to the HQ Portal",
                   status_if_bad="NEEDS_PERSON")
 
     for status, name, detail in results:
@@ -631,7 +631,7 @@ def main():
                     help="display and pin are for the person only (the guard hook refuses them to the agent)")
     ap.add_argument("--add", action="store_true", help="next: write the picked snapshot into webapp_config.json")
     ap.add_argument("--date", nargs=1, metavar="YYYYMMDD", help="next: add this snapshot instead of the automatic pick")
-    ap.add_argument("--skip-portal", action="store_true", help="preflight: skip the Portal checks (testing off the BLM network)")
+    ap.add_argument("--skip-portal", action="store_true", help="preflight: skip the Portal checks (testing without Portal access)")
     a = ap.parse_args()
     acfg = load_agent_config()
     cfg = W.load_config()

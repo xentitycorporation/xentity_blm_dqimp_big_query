@@ -12,7 +12,7 @@ The runbook is `.claude\skills\dashboard-update\SKILL.md`.
 
 ## Where it runs
 
-It runs on the BLM computer, from the `web-app\` folder of a Git clone of this repo, the same way the build agent runs from `build\` on your laptop.
+It runs from the `web-app\` folder of a Git clone of this repo, opened in VS Code on a laptop with ArcGIS Pro signed in to the BLM HQ Portal. That is the same way the build agent runs from `build\`.
 
 | What | Where (example: the clone is in `%USERPROFILE%\BLM_DQIMP_GitRepo\`) |
 |---|---|
@@ -30,7 +30,7 @@ The older way, a deployed copy with `Query_Results\` next to `tests\` (`DQIMP_BL
 1. **Wait for the monthly build** to load the new snapshot into BigQuery (`/monthly-build` on your laptop).
 2. **Bring the clone up to date.** In a terminal in the clone: `git switch main`, then `git pull`.
    - If the pull changed any of the agent's files, run `tests\run_dashboard.bat pin` from `web-app\`, in a plain Command Prompt. Until you do, every step refuses to run (see "When the code changes").
-3. **Sign ArcGIS Pro in** to the HQ Portal with your PIV card, and leave it as Pro's active portal.
+3. **Sign ArcGIS Pro in** to the HQ Portal, and leave it as Pro's active portal.
 4. **Open the folder** in VS Code: File → Open Folder → the clone's `web-app` folder.
    - If VS Code offers to open the Git repository in the parent folder, say yes.
 5. **Start the agent.** Open the Claude Code panel, check the mode reads **Manual**, and type `/dashboard-update`.
@@ -46,7 +46,7 @@ The older way, a deployed copy with `Query_Results\` next to `tests\` (`DQIMP_BL
 ## When the code changes
 
 The repo is the master for the agent's code, SQL and settings. After a change is merged:
-1. `git pull` in the clone on the BLM computer.
+1. `git pull` in the clone the dashboard update runs from.
 2. `tests\run_dashboard.bat pin` from `web-app\`, in a plain Command Prompt.
 3. If the change touched `.claude\` (settings, hook or skill), repeat the guard checks in "Setup", step 6.
 
@@ -54,26 +54,23 @@ The repo is the master for the agent's code, SQL and settings. After a change is
 
 ## How it is fenced in
 
-It runs on a BLM computer, so it is limited to exactly what the update needs. There are three layers, and each holds without the others.
+It publishes to the BLM HQ Portal, so it is limited to exactly what the update needs. There are three layers, and each holds without the others.
 
 | Layer | What it does | Holds even if… |
 |---|---|---|
 | **Guard hook** (`.claude\hooks\dashboard_guard.py`, runs before every tool call) | Allowlist. Allows only:<br>• the wrapper with one of 10 fixed step forms;<br>• reading the agent's own reports and logs in the output folder;<br>• writing its own report file there.<br>Refuses everything else: other commands, the CSVs, the scripts, every other file and folder, the web, connectors, subagents, stopping a running step. Set to block if the hook itself fails. Logs every decision to `agent_logs\guard_<date>.log` in the output folder. | …a permission prompt is clicked "always allow" or a permission mode is changed: a hook refusal comes before the permission rules. |
-| **Permission rules** (`.claude\settings.json`, plus `.claude\settings.local.json` on the BLM computer) | Deny rules for the dangerous ones (`--create`, `pin`, `display`, direct `dqimp_webapp`, `git`, the GitHub CLI `gh`, edits to `tests\`/`.claude\`/`CLAUDE.md`, any CSV, your `.claude`, `AppData` and gcloud credentials, web, subagents, connectors). Bypass mode and auto mode are disabled. Claude's file tools can't read outside the open folder and the output folder (`blockReadsOutsideWorkingDirectories`). | …the hook doesn't run. A deny in this file can't be overridden by an allow anywhere else. |
+| **Permission rules** (`.claude\settings.json`, plus `.claude\settings.local.json`) | Deny rules for the dangerous ones (`--create`, `pin`, `display`, direct `dqimp_webapp`, `git`, the GitHub CLI `gh`, edits to `tests\`/`.claude\`/`CLAUDE.md`, any CSV, your `.claude`, `AppData` and gcloud credentials, web, subagents, connectors). Bypass mode and auto mode are disabled. Claude's file tools can't read outside the open folder and the output folder (`blockReadsOutsideWorkingDirectories`). | …the hook doesn't run. A deny in this file can't be overridden by an allow anywhere else. |
 | **The script itself** (`tests\dashboard_agent.py`) | Every step first checks:<br>• the files are exactly as you pinned them;<br>• the config still points at `hqgis.blm.gov`, the four dashboard items and `xentity-sandbox-huy` (written into the code);<br>• it writes to the same folder the guard allows;<br>• no settings file switches hooks off.<br>Before publishing it signs in and checks that each item is the expected hosted table, owned by you. It never uses `--create`. | …Claude Code's settings are changed: a tampered or redirected setup refuses to run. |
 
 Plus a self-test: before step 1 the agent must try to read `guard_canary.txt`, and the guard must refuse it. If the read works, the guard is off and the agent stops.
 
-## Setup on the BLM computer (once)
+## Setup (once per laptop)
 
 ### 0. Before you start
-- **Check that using Claude Code with your personal Claude Pro subscription is allowed on this government computer** (DOI policy and the contract).
-  - The agent only ever sees aggregate counts and its own logs. It is barred from the case-level CSVs.
-  - The computer and the Portal session are still BLM's.
 - **Claude Code must be version 2.1.295 or later.** The setting that makes a failed guard block calls needs it.
   - Check the VS Code extension's version, or run `claude --version`.
   - On an older version, a guard that fails to start lets calls through to the permission rules (still strict, but one layer down).
-- **Committing from this computer** means signing in to GitHub on it. Check that this is allowed too. If it isn't, see "The snapshot list".
+- **Committing from this laptop** means signing in to GitHub on it. If you'd rather not, see "The snapshot list".
 
 ### 1. Clone the repo
 In a plain Command Prompt:
@@ -85,7 +82,7 @@ mkdir Query_Results\web-app\mlrs_case_completeness
 ```
 - **Not in OneDrive** (Documents and Desktop are synced): OneDrive syncing a `.git` folder causes conflicts.
 - Git for Windows is already installed: the guard runs through its Git Bash.
-- If the clone fails with a certificate error (the DOI network re-signs HTTPS), run `git config --global http.sslBackend schannel` and try again.
+- If the clone fails with a certificate error (the network re-signs HTTPS), run `git config --global http.sslBackend schannel` and try again.
 
 ### 2. Bring over last month's outputs
 Copy everything in the deployed folder's `Query_Results\mlrs_case_completeness\` into `%USERPROFILE%\BLM_DQIMP_GitRepo\Query_Results\web-app\mlrs_case_completeness\`.
@@ -136,7 +133,7 @@ tests\run_dashboard.bat next
 ### 6. Test Claude Code and the guard
 1. Open the clone's `web-app` folder in VS Code (**File → Open Folder**) and open the Claude Code panel.
    - The first time, Claude Code asks you to trust the folder. Accept.
-   - If it fails with a certificate error, set a user environment variable `NODE_EXTRA_CA_CERTS=<the DOI root .pem>` (Start → "Edit environment variables for your account") and restart VS Code.
+   - If it fails with a certificate error, set a user environment variable `NODE_EXTRA_CA_CERTS=<your network's root certificate .pem>` (Start → "Edit environment variables for your account") and restart VS Code.
 2. Check that the guard refuses things. Ask Claude, one at a time:
    - "run `dir`";
    - "read `tests\webapp_config.json`";
@@ -155,8 +152,8 @@ tests\run_dashboard.bat next
 
 ## The snapshot list
 `next --add` adds each month to `web-app\tests\webapp_config.json` in the clone. Commit it after the run, one of two ways:
-- **From the BLM computer** (needs GitHub sign-in there): create a branch, commit the file, push, open a pull request and merge it. Then `git switch main` and `git pull`.
-- **From your laptop:** copy the file to the laptop repo's `web-app\tests\`, and commit and merge it there. Then, on the BLM computer, discard the local change (`git restore web-app/tests/webapp_config.json`) and `git pull`, which brings the same file back from `main`.
+- **From this clone** (needs GitHub sign-in on this laptop): create a branch, commit the file, push, open a pull request and merge it. Then `git switch main` and `git pull`.
+- **From another clone:** copy the file to that clone's `web-app\tests\`, and commit and merge it there. Then, in this clone, discard the local change (`git restore web-app/tests/webapp_config.json`) and `git pull`, which brings the same file back from `main`.
 
 `pin` ignores the snapshot list, so neither way breaks the pins. Commit it before the next run, so the clone is clean when you pull.
 
