@@ -2,7 +2,7 @@
 rem Runs one dashboard-update step in the ArcGIS Pro clone environment.
 rem   tests\run_dashboard.bat <step> [options]
 rem   steps: preflight  next [--add] [--date YYYYMMDD]  build  compare  publish-dry  publish  verify  display
-rem A .bat file, not PowerShell, so the PowerShell execution policy on the BLM computer does not apply.
+rem A .bat file, not PowerShell, so a PowerShell execution policy does not apply.
 rem Overrides (optional): set DQIMP_ENV=<env name>  /  set DQIMP_PRO_DIR=<ArcGIS Pro folder>\
 setlocal
 rem Windows' find.exe by full path: Git Bash (Claude Code's shell) puts its own find first on the PATH.

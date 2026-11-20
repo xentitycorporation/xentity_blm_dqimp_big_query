@@ -62,7 +62,7 @@ def read_sql(page_cfg, name):
 
 def output_dir(cfg, page):
     """Where the CSVs go: --output-dir if given; else a Query_Results folder next to this
-    script's folder (the flat layout used on the BLM computer); else output_dir in the config,
+    script's folder (the flat layout of a deployed copy); else output_dir in the config,
     relative to the repo root (the repo layout)."""
     if cfg.get("_output_dir_override"):
         base = Path(cfg["_output_dir_override"]).resolve()
@@ -90,12 +90,12 @@ def with_snapshots(sql, snapshots):
 def trust_windows_certificates():
     """Let the BigQuery client trust what Windows trusts.
 
-    The BLM network inspects TLS: HTTPS to Google arrives re-signed by a DOI certificate that
+    Some networks inspect TLS: HTTPS to Google arrives re-signed by the network's certificate, which
     Windows trusts but Python's own certificate list (certifi) does not, so BigQuery calls fail
     with CERTIFICATE_VERIFY_FAILED (found 2026-10-09). This writes one bundle -- certifi's list
     plus the Windows root and intermediate stores -- and points requests at it. Verification
     stays ON; nothing is trusted that Windows does not already trust. Read fresh on every run,
-    so a renewed DOI certificate needs no action. Skipped if REQUESTS_CA_BUNDLE is already set,
+    so a renewed network certificate needs no action. Skipped if REQUESTS_CA_BUNDLE is already set,
     or off Windows.
     """
     import os
@@ -185,8 +185,8 @@ def build(cfg, page):
 
 
 def connect_portal(cfg):
-    """Sign in to the BLM HQ Portal. 'pro' reuses ArcGIS Pro's own sign-in, so the PIV
-    card is used exactly as it is in Pro and nothing is stored here."""
+    """Sign in to the BLM HQ Portal. 'pro' reuses ArcGIS Pro's own sign-in, exactly as it
+    is in Pro, and nothing is stored here."""
     import warnings
     from arcgis.gis import GIS
 
@@ -213,7 +213,7 @@ UPLOAD_ATTEMPTS = 5
 def harden_uploads(gis):
     """Upload large CSVs in small parts, one at a time, retrying a dropped part.
 
-    The arcgis library sends a large file as 35 MB parts, up to five at once. On the BLM network
+    The arcgis library sends a large file as 35 MB parts, up to five at once. On the HQ Portal's network
     the 106 MB Cases CSV failed that way (2026-10-19: SSLEOFError, 'EOF occurred in violation
     of protocol' on addPart): the connection was dropped mid-upload. That is a dropped
     connection, not a certificate problem, so certificate checking stays ON; the library's hint
@@ -370,7 +370,7 @@ def display(cfg, page, only=None):
 def check_folder(gis, folder):
     """Stop unless the Portal folder already exists in your own content, spelled exactly as in
     the config. It is never created here: a typo would otherwise quietly put the tables in a new
-    folder. Written for every arcgis 2.x (laptop 2.4.3 with Pro 3.7, BLM computer 2.4.1 with Pro 3.5)."""
+    folder. Written for every arcgis 2.x (tested with 2.4.3 on Pro 3.7 and 2.4.1 on Pro 3.5)."""
     names = []
     for f in gis.users.me.folders or []:
         names.append(f.get("title") if isinstance(f, dict) else getattr(f, "name", None) or getattr(f, "title", None))

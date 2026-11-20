@@ -38,7 +38,7 @@ __pycache__/
 build/monthly_build.local.json
 .claude/settings.local.json
 # Dashboard update agent (web-app/): per-machine pins, personal Claude Code settings, and
-# outputs if the flat BLM layout is ever reproduced inside the repo
+# outputs if the flat deployed layout is ever reproduced inside the repo
 web-app/tests/guard_pins.json
 web-app/.claude/settings.local.json
 web-app/Query_Results/

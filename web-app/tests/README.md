@@ -56,7 +56,7 @@ Pro's Python environment**, not the repo's `.venv` (which has no `arcgis`).
    ```
 
 4. Sign in to Google Cloud for `build`: `gcloud auth application-default login`.
-5. Sign in to the **BLM HQ Portal inside ArcGIS Pro** with the PIV card, and leave it as Pro's
+5. Sign in to the **BLM HQ Portal inside ArcGIS Pro**, and leave it as Pro's
    active portal. `publish` reuses that sign-in; it never holds a password.
 
 In VS Code, pick `arcpro_clone` as the interpreter, and open **this repo folder** as the workspace
@@ -77,7 +77,7 @@ python web-app/tests/dqimp_webapp.py display
 
 | Layout | Script at | CSVs written to |
 |---|---|---|
-| Repo (your laptop, and the clone the dashboard agent runs from on the BLM computer) | `<repo>/web-app/tests/` | `output_dir` in the config, relative to the repo root: `../Query_Results/web-app/<page>/`, outside the repo |
+| Repo (any Git clone, including the one the dashboard agent runs from) | `<repo>/web-app/tests/` | `output_dir` in the config, relative to the repo root: `../Query_Results/web-app/<page>/`, outside the repo |
 | Flat (an older deployed copy outside Git) | `<folder>/tests/` | `<folder>/Query_Results/<page>/`, used whenever a `Query_Results` folder sits next to `tests` |
 
 The page's SQL is always in a folder next to the script (`sql_dir`, e.g. `mlrs_case_completeness/`).
@@ -104,7 +104,7 @@ send nothing), `--output-dir` (use another output folder; overrides both layouts
 
 ### A new monthly snapshot
 
-The normal way is the dashboard update agent: on the BLM computer, open `web-app\` in VS Code and
+The normal way is the dashboard update agent: open `web-app\` in VS Code and
 type `/dashboard-update`. It does the steps below with checks around them. See
 [../README_dashboard_agent.md](../README_dashboard_agent.md), "Each month".
 

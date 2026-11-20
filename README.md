@@ -53,7 +53,7 @@ Each recurring process that a Claude Code agent runs lives in its own folder, wh
 | Agent | Home folder | Start it | Setup and guardrails |
 |---|---|---|---|
 | Monthly build (`/monthly-build`) | `build/` | Open `build/` in VS Code, then type `/monthly-build` in the Claude Code panel | [build/README_build.md](build/README_build.md), "Automated run" |
-| Dashboard update (`/dashboard-update`) | `web-app/` | On the BLM computer, open the clone's `web-app/` in VS Code, then type `/dashboard-update` | [web-app/README_dashboard_agent.md](web-app/README_dashboard_agent.md), "Each month" |
+| Dashboard update (`/dashboard-update`) | `web-app/` | Open `web-app/` in VS Code (with ArcGIS Pro signed in to the BLM HQ Portal), then type `/dashboard-update` in the Claude Code panel | [web-app/README_dashboard_agent.md](web-app/README_dashboard_agent.md), "Each month" |
 
 Each month the build runs first: the dashboard update needs the new snapshot in BigQuery.
 
