@@ -106,7 +106,7 @@ try {
         # A tool named with a path or an extension (git.exe, gsutil.cmd, c:/x/bq.cmd,
         # & 'c:/program files/git/cmd/git.exe') is reduced to its bare name, so every check
         # below sees it the same as plain "git", "gsutil" or "bq".
-        $tools = 'git|gsutil|bq|gcloud|pwsh|powershell|python3?|py|cmd|conda|pip3?|mamba|winget|choco|scoop|npm|reg|setx|schtasks|netsh'
+        $tools = 'git|gh|gsutil|bq|gcloud|pwsh|powershell|python3?|py|cmd|conda|pip3?|mamba|winget|choco|scoop|npm|reg|setx|schtasks|netsh'
         $ext = '(?:\.exe|\.cmd|\.bat|\.com)'
         $n = [regex]::Replace($n, '([''"])[^''"]*/(' + $tools + ')' + $ext + '?\1', '$2')
         $n = [regex]::Replace($n, '(^|[\s;&|(])[^\s''";&|()]*/(' + $tools + ')' + $ext + '?(?=[\s;&|)]|$)', '$1$2')
@@ -191,6 +191,44 @@ try {
                 '^tag$' { if ($rest -match '\s(-d|--delete|-f|--force)\s') { Flag 'deny' 'git tag delete or force' } elseif ($rest.Trim() -and $rest -notmatch '^\s*(-l|--list)') { Flag 'ask' 'git tag creates a tag' } }
                 '^(switch|merge|rebase|cherry-pick|revert|am|apply|add|rm|mv|pull|worktree|submodule|config|remote|init|clone|notes|bisect|sparse-checkout)$' { Flag 'ask' "git $sub changes the repo or its settings" }
             }
+        }
+
+        # ---------- 13: GitHub CLI (gh) ----------
+        # Commits, pull requests, merges, branch deletes, releases, workflows and repo settings are
+        # yours, so gh may only read. The build agent has no use for gh at all. Anything not on the
+        # read list is refused, so a gh command added later is refused until it is put on the list.
+        foreach ($m in [regex]::Matches($ns, '(^|[\s;&|(''"])gh(?=\s|$)([^|;&\n]*)')) {
+            if (Under $cwdN $buildN) { Flag 'deny' 'gh (GitHub CLI): the build agent does not use GitHub'; continue }
+            $ghArgs = ' ' + $m.Groups[2].Value + ' '
+            # the first two words that are not options, skipping option values such as -R owner/repo
+            $words = @(); $skipNext = $false
+            foreach ($t in ($ghArgs.Trim() -split '\s+')) {
+                if (-not $t) { continue }
+                if ($skipNext) { $skipNext = $false; continue }
+                if ($t.StartsWith('-')) {
+                    if ($t -match '^(-r|--repo|-x|--method|-h|--header|--hostname|-q|--jq|-t|--template|-f|--field|--raw-field|--input|-p|--preview|--cache)$') { $skipNext = $true }
+                    continue
+                }
+                $words += $t
+                if ($words.Count -ge 2) { break }
+            }
+            $pair = ($words -join ' ')
+            if ($words.Count -eq 0 -or $words[0] -in @('help', 'version', 'status', 'search', 'completion')) { continue }
+            if ($words[0] -eq 'api') {
+                $method = if ($ghArgs -match '\s(-x|--method)[=\s]+([a-z]+)') { $Matches[2] } else { '' }
+                if ($ghArgs -match '\bmutation\b') { Flag 'deny' 'gh api graphql mutation changes GitHub; gh may only read' }
+                elseif ($method -and $method -ne 'get') { Flag 'deny' "gh api -X $($method.ToUpper()) changes GitHub; gh may only read" }
+                elseif ($ghArgs -match '\s(-f|--field|--raw-field|--input)[=\s]' -and $method -ne 'get' -and $pair -ne 'api graphql') {
+                    Flag 'deny' 'gh api with fields sends a POST, which changes GitHub (add -X GET to read)'
+                }
+                continue
+            }
+            if ($words.Count -eq 1) { continue }   # e.g. "gh pr" on its own prints help
+            $readRx = '^(pr (list|view|status|checks|diff)|issue (list|view|status)|run (list|view|watch)|workflow (list|view)|release (list|view)|repo view|label list|ruleset (list|view|check)|cache list|gist (list|view)|secret list|variable (list|get)|ssh-key list|gpg-key list|auth status|config (get|list)|org list|alias list|extension list|attestation verify)$'
+            if ($pair -eq 'auth status' -and $ghArgs -match '\s(--show-token|-t)\s') { Flag 'deny' 'gh auth status --show-token prints your GitHub token' }
+            elseif ($pair -match $readRx) { }
+            elseif ($pair -match '^(pr checkout|repo clone|release download|run download|gist clone)$') { Flag 'ask' "gh $pair writes to this computer (a branch, a clone or downloaded files)" }
+            else { Flag 'deny' "gh $pair is not on the guard's read-only list for GitHub (pull requests, merges, branches, releases, workflows, repo settings, sign-in, aliases and extensions are yours)" }
         }
 
         # ---------- 1: rebuilding a loaded snapshot ----------

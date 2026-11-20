@@ -49,6 +49,7 @@
       "Bash(gcloud auth application-default *)", "Bash(gcloud auth print-access-token *)",
       "PowerShell(gcloud config set *)", "PowerShell(gcloud auth revoke *)", "PowerShell(gcloud auth activate-service-account *)",
       "PowerShell(gcloud auth application-default *)", "PowerShell(gcloud auth print-access-token *)",
+      "Bash(gh)", "Bash(gh *)", "PowerShell(gh)", "PowerShell(gh *)",
       "Edit(./.claude/settings.json)",
       "Edit(./.claude/settings.local.json)",
       "Edit(./.claude/hooks/**)",

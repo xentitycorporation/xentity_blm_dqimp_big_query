@@ -61,3 +61,5 @@ An agent's home holds its own `.claude/` folder (permission rules, guard hook, r
 
 The repo root's `.claude/settings.json` is for general work in the whole repo: it denies commits, pushes, cloud deletes, connectors and edits to any agent's settings or hooks, and runs the build guard. It holds no agent of its own.
 
+**GitHub CLI (`gh`).** Commits, pull requests, merges and branch deletes are always done by a person. Neither agent may run `gh` at all. In a session at the repo root, `gh` may only read: listing and viewing pull requests, runs and the repo, and `gh api` with GET. Everything else is refused, including creating, merging or closing pull requests, deleting repos or branches, releases, workflow runs, secrets, sign-in and tokens, aliases and extensions. The build guard enforces this, and the deny rules in each `.claude/settings.json` back it up.
+

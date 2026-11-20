@@ -9,8 +9,8 @@
 # D:\Xentity\BLM\BLM_DQIMP_GitRepo\Query_Results\ (outside this tree). These
 # rules are a second layer of protection in case an output is ever written to
 # the repo folder.
-# NOTE: existing tracked files (e.g. web-app/*.csv, the lookup-table CSV under
-# schemas/) are unaffected — .gitignore does not untrack committed files.
+# NOTE: files already tracked (the lookup-table CSV under schemas/) are
+# unaffected — .gitignore does not untrack committed files.
 # ---------------------------------------------------------------------------
 *_results.csv
 *_results_*.csv

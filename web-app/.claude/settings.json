@@ -28,6 +28,7 @@
       "Read(~/.claude/**)", "Edit(~/.claude/**)",
       "Read(~/AppData/**)", "Edit(~/AppData/**)",
       "Read(~/.ssh/**)", "Read(~/.config/**)", "Read(~/.gitconfig)",
+      "Bash(gh)", "Bash(gh *)", "PowerShell(gh)", "PowerShell(gh *)",
       "WebFetch", "WebSearch", "Agent", "NotebookEdit", "TaskStop", "Monitor",
       "EnterPlanMode", "ExitPlanMode", "Workflow",
       "mcp__*"
